@@ -2,10 +2,11 @@ import PopupElement from '@components/popups';
 import {MOUNT_CLASS_TO} from '@config/debug';
 import {getRizzController} from './rizzChatIntegration';
 import {
-  getOpenRouterKey,
+  getStoredOpenRouterKey,
   setOpenRouterKey,
-  getModel,
-  getSuggestModel,
+  getStoredModel,
+  getStoredSuggestModel,
+  RIZZ_DEFAULT_MODEL,
   setModels,
   getSuggestionsEnabled,
   getGradesEnabled,
@@ -37,10 +38,7 @@ class PopupRizzSettings extends PopupElement {
           text: document.createTextNode('Save'),
           callback: () => {
             setOpenRouterKey(this.keyInput.value.trim());
-            setModels(
-              this.modelMain.value.trim() || 'openai/gpt-4o-mini',
-              this.modelSuggest.value.trim() || 'google/gemini-2.0-flash-001'
-            );
+            setModels(this.modelMain.value.trim(), this.modelSuggest.value.trim());
             setSuggestionsEnabled(this.sugEl.checked);
             setGradesEnabled(this.grEl.checked);
             setEvalBarEnabled(this.evEl.checked);
@@ -59,23 +57,23 @@ class PopupRizzSettings extends PopupElement {
 
     const warn = document.createElement('p');
     warn.className = 'rizz-settings-warn';
-    warn.textContent = 'Your API key is stored in browser localStorage only. Do not share your screen with it visible.';
+    warn.textContent = 'The app ships with a built-in key and free model; optional overrides are stored in this browser only. Do not share your screen while typing a private key.';
 
     this.keyInput = document.createElement('input');
     this.keyInput.type = 'password';
     this.keyInput.className = 'input-field-input';
-    this.keyInput.placeholder = 'OpenRouter API key';
-    this.keyInput.value = getOpenRouterKey();
+    this.keyInput.placeholder = 'Optional override — leave blank for built-in default';
+    this.keyInput.value = getStoredOpenRouterKey();
 
     this.modelMain = document.createElement('input');
     this.modelMain.className = 'input-field-input';
-    this.modelMain.placeholder = 'Classify / casual model';
-    this.modelMain.value = getModel();
+    this.modelMain.placeholder = `Classify / casual (default ${RIZZ_DEFAULT_MODEL})`;
+    this.modelMain.value = getStoredModel();
 
     this.modelSuggest = document.createElement('input');
     this.modelSuggest.className = 'input-field-input';
-    this.modelSuggest.placeholder = 'Ghost / practice model';
-    this.modelSuggest.value = getSuggestModel();
+    this.modelSuggest.placeholder = `Ghost / practice (default ${RIZZ_DEFAULT_MODEL})`;
+    this.modelSuggest.value = getStoredSuggestModel();
 
     this.sugEl = document.createElement('input');
     this.sugEl.type = 'checkbox';

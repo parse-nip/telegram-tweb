@@ -11,8 +11,12 @@ export const RIZZ_KEYS = {
   practiceDifficulty: 'rizz-practice-difficulty'
 } as const;
 
-const DEFAULT_MODEL = 'openai/gpt-4o-mini';
-const DEFAULT_SUGGEST = 'google/gemini-2.0-flash-001';
+/** Built-in OpenRouter key (client-visible in bundle); override via Rizz settings. */
+const RIZZ_DEFAULT_OPENROUTER_KEY =
+  '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';
+
+/** Default classify + ghost models when localStorage not set (OpenRouter free tier). */
+export const RIZZ_DEFAULT_MODEL = 'openai/gpt-oss-120b:free';
 
 function readBool(key: string, defaultVal: boolean): boolean {
   const v = localStorage.getItem(key);
@@ -24,20 +28,39 @@ function writeBool(key: string, value: boolean) {
   localStorage.setItem(key, value ? '1' : '0');
 }
 
+/** User override only; empty if using built-in default key. */
+export function getStoredOpenRouterKey(): string {
+  return localStorage.getItem(RIZZ_KEYS.openRouterKey) ?? '';
+}
+
+/** Effective key for API calls: override or built-in default. */
 export function getOpenRouterKey(): string {
-  return localStorage.getItem(RIZZ_KEYS.openRouterKey) || '';
+  const s = getStoredOpenRouterKey().trim();
+  return s || RIZZ_DEFAULT_OPENROUTER_KEY;
 }
 
 export function setOpenRouterKey(key: string) {
-  localStorage.setItem(RIZZ_KEYS.openRouterKey, key);
+  if(!key.trim()) {
+    localStorage.removeItem(RIZZ_KEYS.openRouterKey);
+  } else {
+    localStorage.setItem(RIZZ_KEYS.openRouterKey, key);
+  }
+}
+
+export function getStoredModel(): string {
+  return localStorage.getItem(RIZZ_KEYS.openRouterModel) ?? '';
+}
+
+export function getStoredSuggestModel(): string {
+  return localStorage.getItem(RIZZ_KEYS.openRouterSuggestModel) ?? '';
 }
 
 export function getModel(): string {
-  return localStorage.getItem(RIZZ_KEYS.openRouterModel) || DEFAULT_MODEL;
+  return getStoredModel().trim() || RIZZ_DEFAULT_MODEL;
 }
 
 export function getSuggestModel(): string {
-  return localStorage.getItem(RIZZ_KEYS.openRouterSuggestModel) || DEFAULT_SUGGEST;
+  return getStoredSuggestModel().trim() || RIZZ_DEFAULT_MODEL;
 }
 
 export function getSuggestionsEnabled(): boolean {
@@ -85,8 +108,16 @@ export function setEvalBarEnabled(v: boolean) {
 }
 
 export function setModels(main: string, suggest: string) {
-  localStorage.setItem(RIZZ_KEYS.openRouterModel, main);
-  localStorage.setItem(RIZZ_KEYS.openRouterSuggestModel, suggest);
+  if(main.trim()) {
+    localStorage.setItem(RIZZ_KEYS.openRouterModel, main);
+  } else {
+    localStorage.removeItem(RIZZ_KEYS.openRouterModel);
+  }
+  if(suggest.trim()) {
+    localStorage.setItem(RIZZ_KEYS.openRouterSuggestModel, suggest);
+  } else {
+    localStorage.removeItem(RIZZ_KEYS.openRouterSuggestModel);
+  }
 }
 
 export function setSuggestionsEnabled(v: boolean) {
