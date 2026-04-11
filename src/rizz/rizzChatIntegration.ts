@@ -5,6 +5,7 @@ import getRichValueWithCaret from '@helpers/dom/getRichValueWithCaret';
 import ListenerSetter from '@helpers/listenerSetter';
 import {Grade, formatGradeTitle, gradeIconBasename} from './grades';
 import {getCached, setCached} from './gradeStore';
+import {getCachedInsight} from './snapshotStore';
 import {
   peerKeyFromPeerId,
   computeChatStats,
@@ -95,7 +96,9 @@ export class RizzChatController {
   private ghostReq = 0;
   private evalLayer: HTMLDivElement;
   private evalFill: HTMLDivElement;
+  private topSummaryStack: HTMLDivElement;
   private openingSummaryEl: HTMLDivElement;
+  private insightStripEl: HTMLDivElement;
   private practiceLayer: HTMLDivElement;
   private io: IntersectionObserver | null = null;
   private pendingMids = new Set<string>();
@@ -143,8 +146,16 @@ export class RizzChatController {
     this.evalFill.className = 'rizz-eval-bar-fill';
     this.evalLayer.append(this.evalFill);
 
+    this.topSummaryStack = document.createElement('div');
+    this.topSummaryStack.className = 'rizz-top-summary-stack';
+
     this.openingSummaryEl = document.createElement('div');
     this.openingSummaryEl.className = 'rizz-opening-summary-lines hide';
+
+    this.insightStripEl = document.createElement('div');
+    this.insightStripEl.className = 'rizz-insight-strip hide';
+
+    this.topSummaryStack.append(this.openingSummaryEl, this.insightStripEl);
 
     this.practiceLayer = document.createElement('div');
     this.practiceLayer.className = 'rizz-practice-transcript hide';
@@ -167,7 +178,7 @@ export class RizzChatController {
 
     /* After scrollable + floating separators (same as before) — keep z-index off so overlays cannot
        stack above the whole bubble layer; see .rizz-opening-summary-lines max-height in SCSS. */
-    chat.bubbles.container.append(this.openingSummaryEl, this.evalLayer, this.practiceLayer);
+    chat.bubbles.container.append(this.topSummaryStack, this.evalLayer, this.practiceLayer);
 
     this.ls.add(chat.input.messageInput)('input', () => {
       this.onDraftInputImmediate();
@@ -220,6 +231,8 @@ export class RizzChatController {
         resetDomBadges(chat.bubbles.container);
         this.clearPracticeTranscript();
         this.openingDecisionCache = null;
+        this.insightStripEl.classList.add('hide');
+        this.insightStripEl.innerHTML = '';
         queueMicrotask(() => this.onDraftInputImmediate());
       }
     });
@@ -254,7 +267,25 @@ export class RizzChatController {
     };
 
     this.refreshEvalAndSummary();
+    this.refreshInsightStripFromCache();
     this.onDraftInputImmediate();
+  }
+
+  public refreshInsightStripFromCache() {
+    const chat = this.chat;
+    const msgs = collectRizzMessages(chat, 1200);
+    const peerKey = peerKeyFromPeerId(chat.peerId);
+    const lastMid = msgs.length ? msgs[msgs.length - 1].mid : 0;
+    const c = getCachedInsight(peerKey, lastMid);
+    if(!c?.whereWeAre?.trim()) {
+      this.insightStripEl.classList.add('hide');
+      this.insightStripEl.innerHTML = '';
+      return;
+    }
+    const line = c.whereWeAre.length > 140 ? c.whereWeAre.slice(0, 137) + '...' : c.whereWeAre;
+    this.insightStripEl.innerHTML =
+      `<div class="rizz-summary-line rizz-insight-line"><span class="rizz-summary-service">${escapeHtml(line)}</span></div>`;
+    this.insightStripEl.classList.remove('hide');
   }
 
   /** After send/clear, InputField height can stay stuck; re-measure when field is empty. */
@@ -578,6 +609,7 @@ export class RizzChatController {
     if(!this.isGradesOn()) {
       this.openingSummaryEl.classList.add('hide');
       this.evalLayer.classList.add('hide');
+      this.refreshInsightStripFromCache();
       return;
     }
     if(!this.isEvalOn()) {
@@ -645,6 +677,7 @@ export class RizzChatController {
       } else {
         this.evalLayer.classList.add('hide');
       }
+      this.refreshInsightStripFromCache();
     })();
   }
 
@@ -658,7 +691,7 @@ export class RizzChatController {
     this.stripEl?.remove();
     this.ghostEl?.remove();
     this.evalLayer?.remove();
-    this.openingSummaryEl?.remove();
+    this.topSummaryStack?.remove();
     this.practiceLayer?.remove();
   }
 }

@@ -7,8 +7,12 @@ import {collectRizzMessages} from './rizzHistory';
 import {computePersonaPack, type PersonaPack} from './personality';
 import {getPeerRelationship, relationshipLabel} from './peerRelationship';
 import {cachePeerAnalytics} from './analyticsCache';
-import {requestStatsOneLiner} from './openrouter';
+import {requestStatsOneLiner, type ConversationInsight, type TrendWindowRow} from './openrouter';
 import {getOpenRouterKey} from './settings';
+import {getCachedInsight, setCachedInsight} from './snapshotStore';
+import {buildConversationInsightForChat} from './rizzInsight';
+import {computeTrendWindows} from './trends';
+import {getRizzController} from './rizzChatIntegration';
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -37,6 +41,59 @@ function flexPair(a: number, b: number): {you: number, them: number} {
   return {you: a, them: b};
 }
 
+function renderInsightSection(insight: ConversationInsight, trendRows: TrendWindowRow[]): string {
+  const maxV = Math.max(1, ...trendRows.map((r) => r.volume));
+  const dir = insight.trendDirection || 'flat';
+  const dirLabel = dir === 'up' ? 'Up' : dir === 'down' ? 'Down' : 'Flat';
+  const bars = trendRows.length ? trendRows.map((r) => {
+    const h = Math.round((r.volume / maxV) * 100);
+    return (
+      `<div class="rizz-stats-trend-cell">` +
+      `<div class="rizz-stats-trend-bar-wrap" aria-hidden="true">` +
+      `<div class="rizz-stats-trend-bar" style="height:${h}%"></div>` +
+      `</div>` +
+      `<span class="rizz-stats-trend-label">${escapeHtml(r.label)}</span>` +
+      `<span class="rizz-stats-trend-sub">${r.volume} msgs · ~${r.friendliness}</span>` +
+      `</div>`
+    );
+  }).join('') : '<div class="rizz-stats-muted">Not enough history for weekly buckets.</div>';
+
+  const themeChips = insight.themes.length ?
+    `<div class="rizz-stats-theme-row">${insight.themes.map((t) => (
+      `<span class="rizz-stats-theme-chip" title="${escapeHtml(t.evidence)}">${escapeHtml(t.label)}</span>`
+    )).join('')}</div>` :
+    '<div class="rizz-stats-muted">No themes detected.</div>';
+
+  const silenceBlock = [
+    insight.silenceNote ? `<p class="rizz-stats-insight-line">${escapeHtml(insight.silenceNote)}</p>` : '',
+    insight.initiativeNote ? `<p class="rizz-stats-insight-line">${escapeHtml(insight.initiativeNote)}</p>` : ''
+  ].join('');
+
+  return [
+    '<section class="rizz-stats-section rizz-stats-section--insight">',
+    '<div class="rizz-stats-section-title">Conversation snapshot</div>',
+    '<p class="rizz-stats-insight-line rizz-stats-insight-strong">',
+    escapeHtml(insight.whereWeAre),
+    '</p>',
+    '<p class="rizz-stats-insight-line">',
+    escapeHtml(insight.recentShift),
+    '</p>',
+    '<p class="rizz-stats-insight-line rizz-stats-insight-action">',
+    '<span class="rizz-stats-insight-k">Next</span> ',
+    escapeHtml(insight.suggestedNext),
+    '</p>',
+    '<div class="rizz-stats-section-title rizz-stats-section-title--sub">Themes</div>',
+    themeChips,
+    '<div class="rizz-stats-section-title rizz-stats-section-title--sub">Momentum (weekly)</div>',
+    `<div class="rizz-stats-trend-meta"><span class="rizz-stats-trend-dir">${dirLabel}</span>`,
+    `<span class="rizz-stats-trend-narr">${escapeHtml(insight.trendNarrative)}</span></div>`,
+    `<div class="rizz-stats-trend-row">${bars}</div>`,
+    '<div class="rizz-stats-section-title rizz-stats-section-title--sub">Silence &amp; initiative</div>',
+    silenceBlock || '<div class="rizz-stats-muted">No strong signals in this window.</div>',
+    '</section>'
+  ].join('');
+}
+
 function renderPersonaSection(p: PersonaPack, relLabel: string): string {
   const emojiRow = p.topEmojis.length ?
     `<div class="rizz-stats-emoji-row">${p.topEmojis.map((x) => (
@@ -62,7 +119,13 @@ function renderPersonaSection(p: PersonaPack, relLabel: string): string {
   ].join('');
 }
 
-function renderRizzStatsHtml(s: ChatStats, persona: PersonaPack, relLabel: string): string {
+function renderRizzStatsHtml(
+  s: ChatStats,
+  persona: PersonaPack,
+  relLabel: string,
+  insight: ConversationInsight,
+  trendRows: TrendWindowRow[]
+): string {
   const avgYou = s.replyPairsYou ? Math.round(s.replySumYou / s.replyPairsYou) : 0;
   const avgThem = s.replyPairsThem ? Math.round(s.replySumThem / s.replyPairsThem) : 0;
   const msg = flexPair(s.outgoingCount, s.incomingCount);
@@ -71,6 +134,7 @@ function renderRizzStatsHtml(s: ChatStats, persona: PersonaPack, relLabel: strin
   const reply = flexPair(s.replyPairsYou, s.replyPairsThem);
 
   return [
+    renderInsightSection(insight, trendRows),
     renderPersonaSection(persona, relLabel),
 
     '<section class="rizz-stats-hero">',
@@ -164,6 +228,15 @@ class PopupRizzStats extends PopupElement {
     void (async() => {
       const msgs = collectRizzMessages(this.chat, 1200);
       const peerKey = peerKeyFromPeerId(this.chat.peerId);
+      const lastMid = msgs.length ? msgs[msgs.length - 1].mid : 0;
+      const trendRows = computeTrendWindows(msgs, 4);
+      let insight = getCachedInsight(peerKey, lastMid);
+      if(!insight) {
+        const built = await buildConversationInsightForChat(this.chat, {maxMessages: 1200});
+        insight = built.insight;
+        setCachedInsight(built.peerKey, built.lastMid, insight);
+        getRizzController(this.chat)?.refreshInsightStripFromCache();
+      }
       const rel = getPeerRelationship(this.chat.peerId);
       const relLabel = relationshipLabel(rel);
       const incoming = msgs.filter((m) => !m.out).map((m) => m.text);
@@ -175,7 +248,7 @@ class PopupRizzStats extends PopupElement {
         limitSymbols: 40,
         useManagers: true
       });
-      body.innerHTML = renderRizzStatsHtml(s, persona, relLabel);
+      body.innerHTML = renderRizzStatsHtml(s, persona, relLabel, insight, trendRows);
 
       if(getOpenRouterKey().trim()) {
         const llm = await requestStatsOneLiner({
@@ -191,7 +264,7 @@ class PopupRizzStats extends PopupElement {
         });
         if(llm) {
           persona.oneLiner = llm;
-          body.innerHTML = renderRizzStatsHtml(s, persona, relLabel);
+          body.innerHTML = renderRizzStatsHtml(s, persona, relLabel, insight, trendRows);
         }
       }
 

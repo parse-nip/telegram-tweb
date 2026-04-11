@@ -47,6 +47,10 @@ function topEmojisFromTexts(texts: string[], limit: number): {emoji: string, cou
   .map(([emoji, count]) => ({emoji, count}));
 }
 
+export function friendlinessScoreForIncoming(incoming: string[]): number {
+  return friendlinessFromIncoming(incoming).score;
+}
+
 function friendlinessFromIncoming(incoming: string[]): {score: number, label: string} {
   if(!incoming.length) {
     return {score: 0, label: 'No text from them yet'};

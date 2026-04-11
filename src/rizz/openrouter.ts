@@ -282,3 +282,149 @@ export async function requestStatsOneLiner(input: StatsOneLinerInput): Promise<s
     return null;
   }
 }
+
+export type TrendWindowRow = {
+  label: string;
+  volume: number;
+  incomingVolume: number;
+  friendliness: number;
+};
+
+export type SilenceInitiativeHints = {
+  lastMessageFrom: 'you' | 'them';
+  hoursSinceLastMsg: number;
+  avgThemReplyHours: number | null;
+  recentSessionsYouFirst: number;
+  recentSessionsTotal: number;
+};
+
+export type ConversationInsight = {
+  whereWeAre: string;
+  recentShift: string;
+  suggestedNext: string;
+  themes: {label: string, evidence: string}[];
+  trendNarrative: string;
+  trendDirection: 'up' | 'flat' | 'down';
+  silenceNote: string;
+  initiativeNote: string;
+};
+
+export type ConversationInsightInput = {
+  peerName: string;
+  relationshipLabel: string;
+  transcript: string;
+  friendlinessThem: number;
+  friendlinessLabel: string;
+  flirtScore: number;
+  flirtLabel: string;
+  trendRows: TrendWindowRow[];
+  silenceHints: SilenceInitiativeHints;
+  deterministicNotes: string;
+};
+
+function clip(s: string, max: number): string {
+  const t = s.trim().replace(/\s+/g, ' ');
+  if(t.length <= max) return t;
+  return t.slice(0, max - 3) + '...';
+}
+
+function parseInsightJson(text: string): Partial<ConversationInsight> | null {
+  let trimmed = text.trim();
+  const start = trimmed.indexOf('{');
+  const end = trimmed.lastIndexOf('}');
+  if(start >= 0 && end > start) trimmed = trimmed.slice(start, end + 1);
+  try {
+    const o = JSON.parse(trimmed) as Record<string, unknown>;
+    const trendDir = String(o.trendDirection || '').toLowerCase();
+    const trendDirection: 'up' | 'flat' | 'down' =
+      trendDir === 'up' || trendDir === 'down' || trendDir === 'flat' ? trendDir : 'flat';
+    const themesRaw = o.themes;
+    const themes: {label: string, evidence: string}[] = [];
+    if(Array.isArray(themesRaw)) {
+      for(const t of themesRaw.slice(0, 5)) {
+        if(t && typeof t === 'object') {
+          const label = clip(String((t as {label?: unknown}).label || ''), 48);
+          const evidence = clip(String((t as {evidence?: unknown}).evidence || ''), 120);
+          if(label) themes.push({label, evidence});
+        }
+      }
+    }
+    return {
+      whereWeAre: clip(String(o.whereWeAre || ''), 360),
+      recentShift: clip(String(o.recentShift || ''), 360),
+      suggestedNext: clip(String(o.suggestedNext || ''), 280),
+      themes,
+      trendNarrative: clip(String(o.trendNarrative || ''), 360),
+      trendDirection,
+      silenceNote: clip(String(o.silenceNote || ''), 220),
+      initiativeNote: clip(String(o.initiativeNote || ''), 220)
+    };
+  } catch{
+    return null;
+  }
+}
+
+export function buildConversationInsightBody(model: string, input: ConversationInsightInput) {
+  let tr = input.trendRows.map((r) =>
+    `${r.label}: total ${r.volume} msgs, them ${r.incomingVolume}, warmth~${r.friendliness}`
+  ).join('\n');
+  if(!tr.trim()) tr = '(not enough history for weekly buckets)';
+
+  const sh = input.silenceHints;
+  const sil = [
+    `Last message from: ${sh.lastMessageFrom}`,
+    `Hours since last message: ${sh.hoursSinceLastMsg.toFixed(1)}`,
+    `Avg hours for them to reply (when you messaged first): ${sh.avgThemReplyHours != null ? sh.avgThemReplyHours.toFixed(1) : 'n/a'}`,
+    `Last ${sh.recentSessionsTotal} sessions — you started first: ${sh.recentSessionsYouFirst}`
+  ].join('\n');
+
+  let user = `You analyze a private Telegram chat. Be warm, specific, and concise. Do not use chess metaphors or chess piece names.\n`;
+  user += `Chat with: ${input.peerName}\n`;
+  user += `Relationship tag: ${input.relationshipLabel}\n`;
+  user += `Heuristic warmth (their messages): ${input.friendlinessThem}/100 (${input.friendlinessLabel})\n`;
+  user += `Heuristic flirt signal: ${input.flirtScore}/100 (${input.flirtLabel})\n\n`;
+  user += `Deterministic notes:\n${input.deterministicNotes}\n\n`;
+  user += `Silence / initiative signals:\n${sil}\n\n`;
+  user += `Weekly buckets (newest may be partial):\n${tr}\n\n`;
+  user += `Recent transcript (oldest to newest, may be trimmed):\n${input.transcript || '(no text)'}\n\n`;
+  user += `Return JSON ONLY with these keys:\n`;
+  user += `{"whereWeAre":"1–2 sentences: current vibe and relationship of the thread",`;
+  user += `"recentShift":"1–2 sentences: how tone or momentum changed lately",`;
+  user += `"suggestedNext":"one short actionable idea for the user's next message",`;
+  user += `"themes":[{"label":"short theme","evidence":"paraphrase or quote fragment"}],`;
+  user += `"trendNarrative":"1–2 sentences interpreting the weekly buckets",`;
+  user += `"trendDirection":"up|flat|down",`;
+  user += `"silenceNote":"one sentence on wait/reply dynamics or empty string",`;
+  user += `"initiativeNote":"one sentence on who starts chats or empty string"}\n`;
+  user += `Max 5 themes. Plain text inside strings, no markdown.`;
+  return {
+    model,
+    temperature: 0.35,
+    max_tokens: 900,
+    messages: [{role: 'user' as const, content: user}]
+  };
+}
+
+export async function requestConversationInsight(input: ConversationInsightInput): Promise<ConversationInsight | null> {
+  if(!getOpenRouterKey().trim()) return null;
+  let transcript = input.transcript;
+  if(transcript.length > 14000) transcript = transcript.slice(-14000);
+  const body = buildConversationInsightBody(getModel(), {...input, transcript});
+  try {
+    const text = await postChatCompletions(body);
+    const parsed = parseInsightJson(text);
+    if(!parsed || !parsed.whereWeAre) return null;
+    return {
+      whereWeAre: parsed.whereWeAre || '',
+      recentShift: parsed.recentShift || '',
+      suggestedNext: parsed.suggestedNext || '',
+      themes: parsed.themes?.length ? parsed.themes : [],
+      trendNarrative: parsed.trendNarrative || '',
+      trendDirection: parsed.trendDirection || 'flat',
+      silenceNote: parsed.silenceNote || '',
+      initiativeNote: parsed.initiativeNote || ''
+    };
+  } catch{
+    return null;
+  }
+}
