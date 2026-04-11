@@ -27,10 +27,10 @@ If the zone is in a **different** Cloudflare account than the Pages project, use
 ## 2. Deploy from Git (recommended)
 
 1. **Workers & Pages** → **Create** → **Pages** → **Connect to Git**.
-2. Select the repo (e.g. `parse-nip/TelegramRizz`).
+2. Select the repo (e.g. **`parse-nip/telegram-tweb`** — app lives at repo root).
 3. **Configure build**
    - **Project name:** `telegram-popped` (recommended, matches this repo).
-   - **Root directory:** `tweb` (if the repo root is the monorepo `TelegramRizz`).
+   - **Root directory:** leave **empty** (or `.`). Use **`tweb`** only if this app is a subfolder inside a larger monorepo.
    - **Framework preset:** None / Vite (either is fine).
    - **Build command:** `pnpm install && pnpm run build`
    - **Build output directory:** `dist`
