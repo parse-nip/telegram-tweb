@@ -102,6 +102,9 @@ if(USE_OWN_SOLID) {
   console.log('using original solid');
 }
 
+/** Cloudflare Pages sets CF_PAGES=1. ESLint during `vite build` fails on thousands of style-only issues in upstream files; typecheck still runs in dev. */
+const enableCheckerInBuild = process.env.CF_PAGES !== '1';
+
 export default defineConfig({
   plugins: [
     // devtools({
@@ -109,6 +112,7 @@ export default defineConfig({
     //   autoname: true // e.g. enable autoname
     // }),
     process.env.VITEST ? undefined : checker({
+      enableBuild: enableCheckerInBuild,
       typescript: true,
       eslint: {
         // for example, lint .ts and .tsx

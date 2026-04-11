@@ -19,7 +19,7 @@ export function isRizzMockAuthEnabled(): boolean {
 
   try {
     return !!(getEnvironment() as {rizzMockAuth?: boolean} | undefined)?.rizzMockAuth;
-  } catch {
+  }catch{
     return false;
   }
 }

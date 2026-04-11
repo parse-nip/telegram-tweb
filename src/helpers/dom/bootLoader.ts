@@ -132,8 +132,8 @@ export function setBootProgress(ratio: number) {
 
   const root = document.getElementById(ROOT_ID);
   if(!syncedDisplayFromDom && root) {
-    const raw = root.style.getPropertyValue('--boot-progress').trim()
-      || getComputedStyle(root).getPropertyValue('--boot-progress').trim();
+    const raw = root.style.getPropertyValue('--boot-progress').trim() ||
+      getComputedStyle(root).getPropertyValue('--boot-progress').trim();
     const parsed = parseFloat(raw);
     if(!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
       displayBootRatio = parsed;
