@@ -224,3 +224,61 @@ export async function requestGambitReadiness(recentContext: string, heuristicLab
     return null;
   }
 }
+
+export type StatsOneLinerInput = {
+  peerName: string;
+  relationshipLabel: string;
+  friendlinessThem: number;
+  friendlinessLabel: string;
+  flirtScore: number;
+  flirtLabel: string;
+  flirtHowTheyReply: string;
+  topEmojis: {emoji: string, count: number}[];
+  incomingTexts: string[];
+};
+
+function sanitizeStatsOneLiner(text: string): string {
+  let s = text.trim().replace(/\s+/g, ' ');
+  s = s.replace(/^["'""]|["'""]$/g, '');
+  if(s.length > 220) s = s.slice(0, 217) + '...';
+  return s;
+}
+
+export function buildStatsOneLinerBody(model: string, input: StatsOneLinerInput) {
+  const lines = input.incomingTexts.slice(-48);
+  let sample = lines.map((t, i) => `${i + 1}. ${t}`).join('\n');
+  if(sample.length > 10000) sample = sample.slice(-10000);
+  const topEmojiSummary = input.topEmojis.length ?
+    input.topEmojis.slice(0, 10).map((x) => `${x.emoji}×${x.count}`).join(', ') :
+    'none';
+
+  let user = `You write short, funny one-liners about someone the user is texting on Telegram.\n`;
+  user += `Their name: ${input.peerName}\n`;
+  user += `Relationship tag (user-chosen): ${input.relationshipLabel}\n`;
+  user += `Heuristic friendliness: ${input.friendlinessThem}/100 (${input.friendlinessLabel})\n`;
+  user += `Heuristic flirt score: ${input.flirtScore}/100 (${input.flirtLabel})\n`;
+  user += `Reply style (heuristic): ${input.flirtHowTheyReply}\n`;
+  user += `Top emojis from them: ${topEmojiSummary}\n\n`;
+  user += `Recent messages from them (numbered, oldest to newest):\n${sample || '(no text)'}\n\n`;
+  user += `Write exactly ONE sentence, max 220 characters. Witty, playful, not cruel or mean-spirited. `;
+  user += `No quotes around the line. No meta commentary. Plain text only.`;
+  return {
+    model,
+    temperature: 0.4,
+    max_tokens: 140,
+    messages: [{role: 'user' as const, content: user}]
+  };
+}
+
+/** LLM one-liner for Rizz stats; null if no API key or request failed. */
+export async function requestStatsOneLiner(input: StatsOneLinerInput): Promise<string | null> {
+  if(!getOpenRouterKey().trim()) return null;
+  try {
+    const body = buildStatsOneLinerBody(getModel(), input);
+    const text = await postChatCompletions(body);
+    const cleaned = sanitizeStatsOneLiner(text);
+    return cleaned.length ? cleaned : null;
+  } catch{
+    return null;
+  }
+}

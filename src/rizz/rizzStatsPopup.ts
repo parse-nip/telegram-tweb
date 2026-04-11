@@ -1,8 +1,14 @@
 import type Chat from '@components/chat/chat';
 import PopupElement from '@components/popups';
+import getPeerTitle from '@components/wrappers/getPeerTitle';
 import {computeChatStats, peerKeyFromPeerId} from './stats';
 import type {ChatStats} from './stats';
 import {collectRizzMessages} from './rizzHistory';
+import {computePersonaPack, type PersonaPack} from './personality';
+import {getPeerRelationship, relationshipLabel} from './peerRelationship';
+import {cachePeerAnalytics} from './analyticsCache';
+import {requestStatsOneLiner} from './openrouter';
+import {getOpenRouterKey} from './settings';
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -31,7 +37,32 @@ function flexPair(a: number, b: number): {you: number, them: number} {
   return {you: a, them: b};
 }
 
-function renderRizzStatsHtml(s: ChatStats): string {
+function renderPersonaSection(p: PersonaPack, relLabel: string): string {
+  const emojiRow = p.topEmojis.length ?
+    `<div class="rizz-stats-emoji-row">${p.topEmojis.map((x) => (
+      `<span class="rizz-stats-emoji-chip" title="${x.count}×">${escapeHtml(x.emoji)}<small>${x.count}</small></span>`
+    )).join('')}</div>` :
+    '<div class="rizz-stats-muted">No emoji in their text window.</div>';
+
+  return [
+    '<section class="rizz-stats-section rizz-stats-section--persona">',
+    '<div class="rizz-stats-section-title">Friendliest (them)</div>',
+    `<div class="rizz-stats-persona-line"><span class="rizz-stats-persona-score">${p.friendlinessThem}</span>`,
+    `<span class="rizz-stats-persona-label">${escapeHtml(p.friendlinessLabel)}</span></div>`,
+    '<div class="rizz-stats-section-title">How they reply (flirty)</div>',
+    `<div class="rizz-stats-persona-line"><span class="rizz-stats-persona-score">${p.flirtScore}</span>`,
+    `<span class="rizz-stats-persona-label">${escapeHtml(p.flirtLabel)}</span></div>`,
+    `<p class="rizz-stats-persona-blurb">${escapeHtml(p.flirtHowTheyReply)}</p>`,
+    '<div class="rizz-stats-section-title">Top emojis (them)</div>',
+    emojiRow,
+    '<div class="rizz-stats-section-title">One-liner</div>',
+    `<p class="rizz-stats-one-liner">${escapeHtml(p.oneLiner)}</p>`,
+    `<div class="rizz-stats-rel-pill">Tagged · ${escapeHtml(relLabel)}</div>`,
+    '</section>'
+  ].join('');
+}
+
+function renderRizzStatsHtml(s: ChatStats, persona: PersonaPack, relLabel: string): string {
   const avgYou = s.replyPairsYou ? Math.round(s.replySumYou / s.replyPairsYou) : 0;
   const avgThem = s.replyPairsThem ? Math.round(s.replySumThem / s.replyPairsThem) : 0;
   const msg = flexPair(s.outgoingCount, s.incomingCount);
@@ -40,6 +71,8 @@ function renderRizzStatsHtml(s: ChatStats): string {
   const reply = flexPair(s.replyPairsYou, s.replyPairsThem);
 
   return [
+    renderPersonaSection(persona, relLabel),
+
     '<section class="rizz-stats-hero">',
     `<div class="rizz-stats-dial-wrap" aria-hidden="true">`,
     `<div class="rizz-stats-dial" style="--score:${s.evalScore}"></div>`,
@@ -131,8 +164,43 @@ class PopupRizzStats extends PopupElement {
     void (async() => {
       const msgs = collectRizzMessages(this.chat, 1200);
       const peerKey = peerKeyFromPeerId(this.chat.peerId);
+      const rel = getPeerRelationship(this.chat.peerId);
+      const relLabel = relationshipLabel(rel);
+      const incoming = msgs.filter((m) => !m.out).map((m) => m.text);
+      const persona = computePersonaPack(peerKey, incoming, rel);
       const s = await computeChatStats(peerKey, msgs, 1200);
-      body.innerHTML = renderRizzStatsHtml(s);
+      const peerName = await getPeerTitle({
+        peerId: this.chat.peerId,
+        plainText: true,
+        limitSymbols: 40,
+        useManagers: true
+      });
+      body.innerHTML = renderRizzStatsHtml(s, persona, relLabel);
+
+      if(getOpenRouterKey().trim()) {
+        const llm = await requestStatsOneLiner({
+          peerName: peerName || 'Chat',
+          relationshipLabel: relLabel,
+          friendlinessThem: persona.friendlinessThem,
+          friendlinessLabel: persona.friendlinessLabel,
+          flirtScore: persona.flirtScore,
+          flirtLabel: persona.flirtLabel,
+          flirtHowTheyReply: persona.flirtHowTheyReply,
+          topEmojis: persona.topEmojis,
+          incomingTexts: incoming
+        });
+        if(llm) {
+          persona.oneLiner = llm;
+          body.innerHTML = renderRizzStatsHtml(s, persona, relLabel);
+        }
+      }
+
+      cachePeerAnalytics({
+        peerId: peerKey,
+        peerName: peerName || 'Chat',
+        friendlinessThem: persona.friendlinessThem,
+        flirtScore: persona.flirtScore
+      });
     })();
   }
 }

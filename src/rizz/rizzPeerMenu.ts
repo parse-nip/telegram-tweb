@@ -2,6 +2,8 @@ import type Chat from '@components/chat/chat';
 import {ChatType} from '@components/chat/chatType';
 import {showRizzStatsPopup} from './rizzStatsPopup';
 import {showRizzSettingsPopup} from './rizzSettingsPopup';
+import {showRizzRelationshipPopup} from './rizzRelationshipPopup';
+import {showRizzAnalyticsPopup} from './rizzAnalyticsPopup';
 import {
   getEvalBarEnabled,
   setEvalBarEnabled,
@@ -33,6 +35,18 @@ export function getRizzPeerMenuButtons(chat: Chat) {
       text: 'Rizz stats',
       onClick: () => showRizzStatsPopup(chat),
       verify: () => chat.type === ChatType.Chat
+    },
+    {
+      icon: 'newprivate',
+      text: 'Chat relationship',
+      onClick: () => showRizzRelationshipPopup(chat),
+      verify: () => chat.type === ChatType.Chat
+    },
+    {
+      icon: 'poll',
+      text: 'Rizz analytics',
+      onClick: () => showRizzAnalyticsPopup(),
+      verify: () => true
     },
     {
       icon: 'settings',
