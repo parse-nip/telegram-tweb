@@ -78,6 +78,7 @@ import {setAppSettings} from '@stores/appSettings';
 import {wrapAsyncClickHandler} from '@helpers/wrapAsyncClickHandler';
 import liteMode from '@helpers/liteMode';
 import createSubmenuTrigger from '@components/createSubmenuTrigger';
+import {getRizzPeerMenuButtons} from '@/rizz/rizzPeerMenu';
 import ButtonMenu, {ButtonMenuItemOptionsVerifiable} from '@components/buttonMenu';
 import Icon from '@components/icon';
 import {getDefaultOptions} from '@components/sidebarLeft/tabs/autoDeleteMessages/options';
@@ -477,7 +478,7 @@ export default class ChatTopbar {
       }
     };
 
-    this.menuButtons = [this.autoDeleteBtnMenuOptions, {
+    this.menuButtons = [this.autoDeleteBtnMenuOptions, ...getRizzPeerMenuButtons(this.chat), {
       icon: 'search',
       text: 'Search',
       onClick: () => {
@@ -830,7 +831,7 @@ export default class ChatTopbar {
         );
       },
       verify: this.verifyIfCanDeleteChat
-    }];
+    }] as any;
 
     this.btnSearch = ButtonIcon('search');
     this.attachClickEvent(this.btnSearch, (e) => {

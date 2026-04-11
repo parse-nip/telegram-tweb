@@ -964,25 +964,47 @@
   &-overview {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    row-gap: 1.125rem;
-    padding: 0 1rem;
-    margin: 0.5rem -.5rem;
+    gap: 0.5rem 0.625rem;
+    row-gap: 0.625rem;
+    padding: 0 1rem 0.75rem;
+    margin: 0.5rem -0.5rem 0;
 
     &-item {
       display: flex;
       flex-direction: column;
-      line-height: 1;
-      gap: 4px;
+      line-height: 1.15;
+      gap: 6px;
       overflow: hidden;
-      min-height: 2.5rem;
+      min-height: 2.75rem;
+      padding: 0.625rem 0.625rem 0.625rem 0.75rem;
+      border-radius: 12px;
+      background-color: rgba(var(--primary-color-rgb), 0.08);
+      border: 1px solid rgba(var(--primary-color-rgb), 0.12);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+      position: relative;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0.5rem;
+        bottom: 0.5rem;
+        width: 3px;
+        border-radius: 0 2px 2px 0;
+        background: linear-gradient(180deg, var(--primary-color), rgba(var(--primary-color-rgb), 0.35));
+        opacity: 0.85;
+      }
+
+      &.is-percent {
+        padding-bottom: 0.5rem;
+      }
 
       &-value {
-        // font-size: var(--font-size-20);
-        font-size: var(--font-size-16);
+        font-size: var(--font-size-18);
         font-weight: var(--font-weight-bold);
+        letter-spacing: -0.02em;
 
         &-description {
-          // font-size: var(--font-size-14);
           font-size: var(--font-size-12);
           font-weight: var(--font-weight-normal);
           color: var(--secondary-text-color);
@@ -997,9 +1019,30 @@
         }
       }
 
+      &-meter {
+        height: 4px;
+        border-radius: 4px;
+        background-color: rgba(var(--primary-color-rgb), 0.12);
+        overflow: hidden;
+        margin-top: 1px;
+      }
+
+      &-meter-fill {
+        height: 100%;
+        border-radius: 4px;
+        background: linear-gradient(90deg, var(--primary-color), rgba(var(--primary-color-rgb), 0.65));
+        min-width: 2px;
+        transition: width 0.35s ease-out;
+
+        @media (prefers-reduced-motion: reduce) {
+          transition: none;
+        }
+      }
+
       &-name {
-        font-size: var(--font-size-14);
+        font-size: var(--font-size-13);
         color: var(--secondary-text-color);
+        line-height: 1.25;
         @include text-overflow(false);
       }
     }

@@ -1,0 +1,43 @@
+Rizz / dev: bypass Telegram login (no real account)
+
+
+
+URL:
+
+  http://localhost:8080/?mockAuth=1
+
+
+
+What it does:
+
+  - Skips the auth wizard and mounts the main UI.
+
+  - Injects a fake "self" user (Rizz Mock) via src/config/rizzMockAuth.ts.
+
+  - apiManager no longer calls logOut() on 401 while mockAuth is on (no redirect loop).
+
+  - apiManagerProxy onLoggedOut preserves mockAuth=1 in the URL (same as test=1).
+
+
+
+Limitations:
+
+  - There is no valid MTProto session. Dialogs, messages, and API calls will error or stay empty.
+
+  - OpenRouter features (classify, suggestions, practice) still work if you set a key in Rizz settings.
+
+  - For full Telegram + Rizz, remove mockAuth and sign in normally.
+
+
+
+Implementation:
+
+  - modes.ts: Modes.mockAuth from ?mockAuth=1
+
+  - index.ts: if mockAuth and not signed in, applyRizzMockAuth() then authStateSignedIn
+
+  - apiManager.ts: skip logOut on 401 / SESSION paths when Modes.mockAuth
+
+  - apiManagerProxy.ts: re-apply mockAuth=1 after logout URL reset
+
+

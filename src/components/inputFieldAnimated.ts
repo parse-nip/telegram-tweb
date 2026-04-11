@@ -43,6 +43,9 @@ export default class InputFieldAnimated extends InputField {
   }
 
   public onFakeInput(setHeight = true, noAnimation?: boolean) {
+    /* Mirror input → fake before measuring. Callers (e.g. Tab ghost accept) can set input value
+     * without firing `input` first; stale fake scrollHeight caused a second layout + height jump. */
+    this.updateInnerHTML();
     const {scrollHeight: newHeight/* , clientHeight */} = this.inputFake;
     /* if(this.wasInputFakeClientHeight && this.wasInputFakeClientHeight !== clientHeight) {
       this.input.classList.add('no-scrollbar'); // ! в сафари может вообще не появиться скролл после анимации, так как ему нужен полный reflow блока с overflow.

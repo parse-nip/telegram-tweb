@@ -622,8 +622,9 @@ export class ApiManager extends ApiManagerMethods {
         error = makeError(undefined, error);
       }
 
-      if((error.code === 401 && error.type === 'SESSION_REVOKED') ||
-        (error.code === 406 && error.type === 'AUTH_KEY_DUPLICATED')) {
+      if(!Modes.mockAuth && (
+        (error.code === 401 && error.type === 'SESSION_REVOKED') ||
+        (error.code === 406 && error.type === 'AUTH_KEY_DUPLICATED'))) {
         this.logOut();
       }
 
@@ -639,7 +640,7 @@ export class ApiManager extends ApiManagerMethods {
         // error.stack = stack || (error.originalError && error.originalError.stack) || error.stack || (new Error()).stack;
         setTimeout(() => {
           if(!error.handled) {
-            if(error.code === 401) {
+            if(error.code === 401 && !Modes.mockAuth) {
               this.logOut();
             } else {
               // ErrorService.show({error: error}); // WARNING

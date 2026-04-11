@@ -208,11 +208,24 @@ const StatisticsOverviewItem = ({
     }
   }
 
+  let meterPct: number | undefined;
+  if(isPercentage && value._ === 'statsPercentValue' && value.total > 0) {
+    meterPct = Math.min(100, (value.part / value.total) * 100);
+  }
+
   return (
-    <div class="statistics-overview-item">
+    <div class={classNames('statistics-overview-item', meterPct !== undefined && 'is-percent')}>
       <div class="statistics-overview-item-value">
         {v}
       </div>
+      <Show when={meterPct !== undefined}>
+        <div class="statistics-overview-item-meter" aria-hidden="true">
+          <div
+            class="statistics-overview-item-meter-fill"
+            style={{width: `${meterPct}%`}}
+          />
+        </div>
+      </Show>
       <div class="statistics-overview-item-name">
         {i18n(title)}
       </div>

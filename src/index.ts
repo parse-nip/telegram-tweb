@@ -56,6 +56,7 @@ import {MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH, SIDEBAR_COLLAPSE_FACTOR} from '@co
 import useHasFoldersSidebar, {useIsSidebarCollapsed} from '@stores/foldersSidebar';
 import appNavigationController from '@components/appNavigationController';
 import {preventCrossTabDynamicImportDeadlock} from '@helpers/preventDeadlock';
+import {hideBootLoader, setBootProgress, setBootStatus} from '@helpers/dom/bootLoader';
 
 // import commonStateStorage from '@lib/commonStateStorage';
 // import { STATE_INIT } from '@config/state';
@@ -382,6 +383,8 @@ function setDocumentLangPackProperties(langPack: LangPackDifference.langPackDiff
 
 /* false &&  */document.addEventListener('DOMContentLoaded', async() => {
   const perf = performance.now();
+  setBootStatus('Starting Telegram…');
+  setBootProgress(0.04);
   randomlyChooseVersionFromSearch();
   setSidebarLeftWidth();
   toggleAttributePolyfill();
@@ -416,6 +419,9 @@ function setDocumentLangPackProperties(langPack: LangPackDifference.langPackDiff
     // I18n.setTimeFormat(settings?.timeFormat || STATE_INIT.settings?.timeFormat);
   });
 
+  setBootStatus('Loading account…');
+  setBootProgress(0.1);
+
   console.time(TIME_LABEL);
 
   // * (1) load states
@@ -427,6 +433,9 @@ function setDocumentLangPackProperties(langPack: LangPackDifference.langPackDiff
   const allStates = await apiManagerProxy.loadAllStates();
   const stateResult = allStates[getCurrentAccount()];
 
+  setBootStatus('Restoring session…');
+  setBootProgress(0.26);
+
   // console.log(stateResult);
   // await pause(10000000);
 
@@ -435,7 +444,12 @@ function setDocumentLangPackProperties(langPack: LangPackDifference.langPackDiff
   // * (2)
   singleInstance.addEventListener('deactivated', onInstanceDeactivated);
   await singleInstance.start();
+  setBootProgress(0.38);
   console.timeLog(TIME_LABEL, 'singleInstance started');
+
+  // * Must run before sendAllStates: worker has no page URL, so Modes.mockAuth is false there unless we pass rizzMockAuth in env.
+  // * Do not call earlier (e.g. right after getProxiedManagers): worker port may not be ready → white screen / failed invoke.
+  apiManagerProxy.sendEnvironment();
 
   const sendAllStatesPromise = singleInstance.deactivatedReason !== 'version' && apiManagerProxy.sendAllStates(allStates);
   if(singleInstance.deactivatedReason) {
@@ -445,6 +459,7 @@ function setDocumentLangPackProperties(langPack: LangPackDifference.langPackDiff
   // * (3)
   await sendAllStatesPromise;
   console.timeLog(TIME_LABEL, 'sent all states (1)');
+  setBootProgress(0.48);
 
   const setUnreadMessagesText = () => {
     const text = I18n.format('UnreadMessages', true);
@@ -464,6 +479,7 @@ function setDocumentLangPackProperties(langPack: LangPackDifference.langPackDiff
 
   // * (4)
   if(!sendAllStatesPromise) {
+    hideBootLoader();
     return;
   }
 
@@ -471,6 +487,8 @@ function setDocumentLangPackProperties(langPack: LangPackDifference.langPackDiff
   await apiManagerProxy.sendAllStates(allStates);
 
   console.timeLog(TIME_LABEL, 'sent all states (2)');
+  setBootStatus('Syncing…');
+  setBootProgress(0.58);
 
   const [, setHasFoldersSidebar] = useHasFoldersSidebar();
   setHasFoldersSidebar(!!rootScope.settings.tabsInSidebar);
@@ -512,10 +530,20 @@ function setDocumentLangPackProperties(langPack: LangPackDifference.langPackDiff
 
   console.timeLog(TIME_LABEL, 'IMAGE_MIME_TYPES_SUPPORTED_PROMISE');
 
+  setBootStatus('Loading interface…');
+  setBootProgress(0.72);
 
   setDocumentLangPackProperties(langPack);
 
   let authState = stateResult.state.authState;
+
+  // * Always run when ?mockAuth=1 — if we only ran when not signed in, persisted authStateSignedIn
+  // * would skip mock setup; getDialogs then calls getTopMessages (network) and never finishes → skeleton UI.
+  if(Modes.mockAuth) {
+    const {applyRizzMockAuth} = await import('./config/rizzMockAuth');
+    await applyRizzMockAuth();
+    authState = {_: 'authStateSignedIn'};
+  }
 
   const hash = location.hash;
   const splitted = hash.split('?');
@@ -538,6 +566,7 @@ function setDocumentLangPackProperties(langPack: LangPackDifference.langPackDiff
       }
 
       appNavigationController.navigateToUrl(url.toString());
+      hideBootLoader();
       return;
     }
 
@@ -550,6 +579,8 @@ function setDocumentLangPackProperties(langPack: LangPackDifference.langPackDiff
 
   if(authState._ !== 'authStateSignedIn'/*  || 1 === 1 */) {
     console.log('Will mount auth page:', authState._, Date.now() / 1000);
+    setBootStatus('Signing in…');
+    setBootProgress(0.82);
 
     (async() => {
       const totalAccounts = await AccountController.getTotalAccounts();
@@ -646,6 +677,8 @@ function setDocumentLangPackProperties(langPack: LangPackDifference.langPackDiff
         await pagePromise;
       }
 
+      hideBootLoader();
+
       const promise = 'fonts' in document ?
         Promise.race([
           pause(1000),
@@ -659,6 +692,10 @@ function setDocumentLangPackProperties(langPack: LangPackDifference.langPackDiff
       });
 
       fadeInWhenFontsReady(scrollable, promise);
+    }
+
+    if(!scrollable) {
+      hideBootLoader();
     }
 
     /* setTimeout(async() => {
@@ -689,6 +726,8 @@ function setDocumentLangPackProperties(langPack: LangPackDifference.langPackDiff
     }, 500); */
   } else {
     console.log('Will mount IM page:', Date.now() / 1000);
+    setBootStatus('Opening chats…');
+    setBootProgress(0.82);
 
     const fontsPromise = loadFonts();
     fadeInWhenFontsReady(document.getElementById('main-columns'), fontsPromise);
@@ -716,6 +755,14 @@ function setDocumentLangPackProperties(langPack: LangPackDifference.langPackDiff
       page.pageEl.classList.remove('main-screen-enter', 'main-screen-entering');
     } else {
       await page.mount();
+      await fontsPromise;
     }
+
+    if(Modes.mockAuth) {
+      const {ensureRizzMockDialogsIfNeeded} = await import('./config/rizzMockDialogs');
+      await ensureRizzMockDialogsIfNeeded(rootScope.managers);
+    }
+
+    hideBootLoader();
   }
 });

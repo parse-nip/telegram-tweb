@@ -19,5 +19,10 @@ archive.zip
 src/langPackLocalVersion.ts
 /.ai
 
+# Local / accidental (Windows CON device, console dumps)
+/console-export-*.log
+/CON
+/CON.map
+
 # Throw files you don't need in this folder
 ignore

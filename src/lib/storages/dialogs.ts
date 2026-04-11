@@ -19,6 +19,7 @@ import {MyDialogFilter} from '@lib/storages/filters';
 import {CAN_HIDE_TOPIC, FOLDER_ID_ALL, FOLDER_ID_ARCHIVE, NULL_PEER_ID, REAL_FOLDERS, REAL_FOLDER_ID, TEST_NO_SAVED} from '@appManagers/constants';
 import {MaybePromise, Modify, NoneToVoidFunction} from '@types';
 import ctx from '@environment/ctx';
+import {getEnvironment} from '@environment/utils';
 import AppStorage from '@lib/storage';
 import forEachReverse from '@helpers/array/forEachReverse';
 import indexOfAndSplice from '@helpers/array/indexOfAndSplice';
@@ -204,7 +205,7 @@ export default class DialogsStorage extends AppManager {
     return Promise.all([
       this.appStateManager.getState(),
       this.appStoragesManager.loadStorage('dialogs')
-    ]).then(([state, {results: dialogs, storage}]) => {
+    ]).then(async([state, {results: dialogs, storage}]) => {
       this.storage = storage;
       this.dialogs = this.storage.getCache();
 
@@ -226,6 +227,17 @@ export default class DialogsStorage extends AppManager {
 
       if(dialogs.length) {
         this.appDraftsManager.addMissedDialogs();
+      }
+
+      // * Rizz mockAuth: main-thread seed can run before this hydrate; restoring allDialogsLoaded here
+      // * overwrote setDialogsLoaded. Worker has no ?mockAuth in location — use env from sendEnvironment().
+      if((getEnvironment() as {rizzMockAuth?: boolean}).rizzMockAuth) {
+        try {
+          const {seedRizzMockDialogs} = await import('@config/rizzMockDialogs');
+          await seedRizzMockDialogs(this as any);
+        } catch(e) {
+          this.log.error('rizzMockAuth seed after dialog hydrate failed', e);
+        }
       }
     });
   }

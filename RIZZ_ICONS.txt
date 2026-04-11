@@ -1,0 +1,6 @@
+Rizz grade badge icons (SVG) were copied from the TelegramRizz tdesktop fork:
+  tdesktop/Telegram/Resources/icons/rizz/  ->  tweb/public/rizz/icons/
+
+In dev, static URLs: http://localhost:8080/rizz/icons/<filename>.svg
+
+See tdesktop/docs/RIZZ_TWEB_HANDOFF.md for grade-to-file mapping.

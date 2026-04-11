@@ -7,6 +7,7 @@
 @use "shared" as *;
 
 @use "base";
+@use "partials/appBoot";
 @use "components/prism";
 @use "fonts";
 @use "partials/input";
@@ -21,6 +22,7 @@
 @use "partials/chat";
 @use "partials/chatTopbar";
 @use "partials/chatBubble";
+@use "partials/rizz";
 @use "partials/chatPinned";
 @use "partials/chatMarkupTooltip";
 @use "partials/chatStickersHelper";

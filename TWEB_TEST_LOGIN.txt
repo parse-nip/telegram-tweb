@@ -1,0 +1,23 @@
+Test DC login (Telegram docs: core.telegram.org/api/auth#test-accounts)
+
+1) Open with test mode (reload after changing URL):
+   http://localhost:8080/?test=1
+
+2) Phone format: 99966XYYYY  (X = 1, 2, or 3 = test DC; YYYY = any digits)
+   Examples: +99966112345  |  +99966212345  |  +99966312345
+
+3) Code is the digit X repeated five times:
+   DC1 -> 11111   DC2 -> 22222   DC3 -> 33333
+
+4) If you still get Invalid code:
+   - Fully clear site data for localhost (Application tab: Local Storage, IndexedDB, Cache Storage, Service Workers), then open step 1 again.
+   - Test mode uses storage keys prefixed with "t_". If you logged in without ?test=1 first, start over after clearing.
+   - Restart dev server after git pull so modes.ts picks up.
+
+5) api_id / api_hash: use the pair from https://my.telegram.org/apps (same as in .env).
+
+Rizz mock (no Telegram): http://localhost:8080/?mockAuth=1
+- Vite is set to port 8080; if that port is busy it will use the next free one (e.g. 8081). Use the exact URL printed in the terminal after `pnpm start`.
+- Console may show many `401 AUTH_KEY_UNREGISTERED` errors in mock mode — expected: the fake session cannot talk to Telegram; UI still uses local mock dialogs.
+- Use one dev server: pnpm start (from tweb/). If two processes fight for the port, you can get a blank page — stop duplicates, then reload.
+- vite preview can look worse (e.g. missing icon font / empty squares) because public assets may not be copied the same way as dev; prefer pnpm start for local testing.

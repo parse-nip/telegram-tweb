@@ -11,21 +11,43 @@
 
 import type {TransportType} from '@lib/mtproto/dcConfigurator';
 
+function urlParamFlag(name: string, value: string, allowAtSuffix = false): boolean {
+  const matchValue = (actual: string | null) => {
+    if(actual === value) {
+      return true;
+    }
+    return allowAtSuffix && !!actual && actual.startsWith(`${value}@`);
+  };
+
+  const match = (params: URLSearchParams) => matchValue(params.get(name));
+  if(match(new URLSearchParams(location.search))) {
+    return true;
+  }
+  const hash = location.hash;
+  const q = hash.indexOf('?');
+  if(q !== -1) {
+    return match(new URLSearchParams(hash.slice(q + 1)));
+  }
+  return false;
+}
+
 const Modes = {
-  test: location.search.indexOf('test=1') > 0/*  || true */,
-  debug: location.search.indexOf('debug=1') > 0,
+  test: urlParamFlag('test', '1'),
+  /** Dev-only: skip Telegram login, inject a fake self user (Rizz UI work without real auth). */
+  mockAuth: urlParamFlag('mockAuth', '1', true),
+  debug: urlParamFlag('debug', '1'),
   http: false,
   ssl: true, // location.search.indexOf('ssl=1') > 0 || location.protocol === 'https:' && location.search.indexOf('ssl=0') === -1,
   asServiceWorker: !!import.meta.env.VITE_MTPROTO_SW,
   transport: 'websocket' as TransportType,
-  noSharedWorker: location.search.indexOf('noSharedWorker=1') > 0,
-  noServiceWorker: location.search.indexOf('noServiceWorker=1') > 0,
-  multipleTransports: !!(import.meta.env.VITE_MTPROTO_AUTO && import.meta.env.VITE_MTPROTO_HAS_HTTP && import.meta.env.VITE_MTPROTO_HAS_WS) && location.search.indexOf('noMultipleTransports=1') === -1,
-  noPfs: true || location.search.indexOf('noPfs=1') > 0
+  noSharedWorker: urlParamFlag('noSharedWorker', '1'),
+  noServiceWorker: urlParamFlag('noServiceWorker', '1'),
+  multipleTransports: !!(import.meta.env.VITE_MTPROTO_AUTO && import.meta.env.VITE_MTPROTO_HAS_HTTP && import.meta.env.VITE_MTPROTO_HAS_WS) && !urlParamFlag('noMultipleTransports', '1'),
+  noPfs: true || urlParamFlag('noPfs', '1')
 };
 
 if(import.meta.env.VITE_MTPROTO_HAS_HTTP) {
-  const httpOnly = Modes.http = location.search.indexOf('http=1') > 0;
+  const httpOnly = Modes.http = urlParamFlag('http', '1');
   if(httpOnly) {
     Modes.multipleTransports = false;
   }

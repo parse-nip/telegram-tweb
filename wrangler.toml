@@ -1,0 +1,6 @@
+# Cloudflare Pages — build output for Wrangler CLI and dashboard hints.
+# See tweb/DEPLOY-CLOUDFLARE.md for Git integration and custom domains.
+
+name = "telegram-popped"
+compatibility_date = "2025-01-01"
+pages_build_output_dir = "dist"

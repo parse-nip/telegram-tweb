@@ -82,6 +82,7 @@ import {AckedResult} from '@lib/superMessagePort';
 import SolidJSHotReloadGuardProvider from '@lib/solidjs/hotReloadGuardProvider';
 import hasRights from '@appManagers/utils/chats/hasRights';
 import {ChatType} from '@components/chat/chatType';
+import {attachRizzToChat, destroyRizzForChat} from '@/rizz/rizzChatIntegration';
 
 export type ChatSearchKeys = Pick<RequestHistoryOptions, 'query' | 'isCacheableSearch' | 'isPublicHashtag' | 'savedReaction' | 'fromPeerId' | 'inputFilter' | 'hashtagType'>;
 export const CHAT_SEARCH_KEYS: (keyof ChatSearchKeys)[] = ['query', 'isCacheableSearch', 'isPublicHashtag', 'savedReaction', 'fromPeerId', 'inputFilter', 'hashtagType'];
@@ -660,6 +661,8 @@ export default class Chat extends EventListenerBase<{
 
     this.container.append(this.topbar.container, this.bubbles.container, this.input.chatInput);
 
+    attachRizzToChat(this);
+
     this.bubbles.listenerSetter.add(rootScope)('dialog_migrate', ({migrateFrom, migrateTo}) => {
       if(this.peerId === migrateFrom) {
         this.setPeer({peerId: migrateTo});
@@ -835,6 +838,7 @@ export default class Chat extends EventListenerBase<{
   }
 
   public beforeDestroy() {
+    destroyRizzForChat(this);
     this.destroyPromise = deferredPromise();
     this.bubbles.cleanup();
     this.searchSignal?.(undefined);

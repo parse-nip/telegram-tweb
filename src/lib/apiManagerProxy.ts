@@ -579,6 +579,10 @@ class ApiManagerProxy extends MTProtoMessagePort {
       url.searchParams.set('test', '1');
     }
 
+    if(Modes.mockAuth) {
+      url.searchParams.set('mockAuth', '1');
+    }
+
     // Make sure managers don't have any obsolete data
     this.closeMTProtoWorker(); // might be useless because of the above `this.invokeVoid('terminate', undefined)` ⬆️
 
@@ -591,8 +595,9 @@ class ApiManagerProxy extends MTProtoMessagePort {
   };
 
   public sendEnvironment() {
-    this.log('Passing environment:', ENVIRONMENT);
-    this.invoke('environment', ENVIRONMENT);
+    const payload = {...ENVIRONMENT, rizzMockAuth: Modes.mockAuth};
+    this.log('Passing environment:', payload);
+    this.invoke('environment', payload);
   }
 
   public pingServiceWorkerWithIframe() {

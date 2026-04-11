@@ -43,6 +43,7 @@ import isInputEmpty from '@helpers/dom/isInputEmpty';
 import isSendShortcutPressed from '@helpers/dom/isSendShortcutPressed';
 import placeCaretAtEnd from '@helpers/dom/placeCaretAtEnd';
 import getRichValueWithCaret from '@helpers/dom/getRichValueWithCaret';
+import {tryRizzPracticeSend} from '@/rizz/rizzPractice';
 import EmojiHelper from '@components/chat/emojiHelper';
 import CommandsHelper from '@components/chat/commandsHelper';
 import AutocompleteHelperController from '@components/chat/autocompleteHelperController';
@@ -3927,6 +3928,12 @@ export default class ChatInput {
     if(preparedPaymentResult === PAYMENT_REJECTED) return;
 
     sendingParams.confirmedPaymentResult = preparedPaymentResult;
+
+    if(!editMsgId && trimmedValue && !this.suggestedPost?.hasMedia && !Object.keys(this.forwarding || {}).length) {
+      if(await tryRizzPracticeSend(this, trimmedValue)) {
+        return;
+      }
+    }
 
     if(editMsgId) {
       const message = this.editMessage;
