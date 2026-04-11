@@ -157,6 +157,7 @@ export default defineConfig({
     target: 'es2020',
     sourcemap: true,
     assetsDir: '',
+    // Public is merged into dist by src/scripts/copy_cloudflare_files.js (Pages deploy).
     copyPublicDir: false,
     emptyOutDir: true,
     minify: NO_MINIFY ? false : undefined,
