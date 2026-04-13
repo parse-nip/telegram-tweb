@@ -15,7 +15,13 @@ import type Chat from '@components/chat/chat';
 import {collectRizzMessages} from './rizzHistory';
 import {computeChatStats, peerKeyFromPeerId, type ChatStats, type RizzMsgLite} from './stats';
 import {computePersonaPack} from './personality';
-import {getPeerRelationship, relationshipLabel} from './peerRelationship';
+import {
+  getPeerRelationship,
+  markRelationshipPromptSkippedForSession,
+  relationshipLabel,
+  wasRelationshipPromptSkippedThisSession
+} from './peerRelationship';
+import {createTelegramRelationshipPicker} from './rizzRelationshipPicker';
 import {requestRelationshipDeepAnalysis, type RelationshipDeepAnalysis} from './openrouter';
 import {buildActivityHeatmap, type ActivityHeatmap} from './rizzAnalysisHeatmap';
 import {formatAnalysisTimestamp, pickKeyMoments, type KeyMoment} from './analysisKeyMoments';
@@ -23,8 +29,6 @@ import {crawlFullHistory} from './rizzHistory';
 import {PopupRizzWrapped} from './rizzWrapped';
 import {listCachedPeerAnalytics} from './analyticsCache';
 import {mountRizzAnalyticsBackdrop, unmountRizzAnalyticsBackdrop} from './rizzAnalyticsBackdrop';
-import {runRelationshipGateForPeer} from './rizzRelationshipPopup';
-
 export type ShowRizzAnalysisHubOptions = {
   /** Full-page app shell: hides chats, mounts hub in `#page-rizz-analytics`. */
   appMode?: boolean
@@ -313,8 +317,44 @@ class PopupRizzAnalysisHub extends PopupElement {
       useManagers: true
     })) || 'Chat';
 
-    /* Same relationship picker as main chat; hub has no Chat instance so we gate by peer here. */
-    await runRelationshipGateForPeer(peerId);
+    const needsRel =
+      peerId.isUser() &&
+      getPeerRelationship(peerId) === 'unset' &&
+      !wasRelationshipPromptSkippedThisSession(peerId);
+
+    if(needsRel) {
+      this.renderRelationshipStep(peerId);
+      return;
+    }
+
+    this.renderConfigureReady();
+  }
+
+  /** Inline step inside the hub (not a separate popup — avoids stacking under `#page-rizz-analytics`). */
+  private renderRelationshipStep(peerId: PeerId) {
+    this.setTitle(this.peerName);
+    this.clearBody();
+    if(!this.body) return;
+
+    const picker = createTelegramRelationshipPicker({
+      peerId,
+      titleMode: 'person',
+      listenerSetter: this.listenerSetter,
+      autoAdvanceMs: 1100,
+      onCancel: () => void this.renderPick(),
+      onComplete: () => this.renderConfigureReady(),
+      onSkip: () => {
+        markRelationshipPromptSkippedForSession(peerId);
+        this.renderConfigureReady();
+      }
+    });
+
+    this.body.append(picker);
+  }
+
+  private renderConfigureReady() {
+    const peerId = this.peerId;
+    if(!peerId) return;
 
     this.setTitle(this.peerName);
     this.clearBody();

@@ -61,14 +61,32 @@ export function setPeerRelationship(peerId: PeerId, r: RizzPeerRelationship) {
 }
 
 /** Shown on first open of a chat (and in the picker). Order matches product wireframe. */
-export const RIZZ_RELATIONSHIP_PICKER_OPTIONS: {value: RizzPeerRelationship, label: string}[] = [
-  {value: 'friend', label: 'Friend'},
-  {value: 'longtime_friend', label: 'Long-time friend'},
-  {value: 'acquaintance', label: 'Acquaintance'},
-  {value: 'romantic', label: 'Romantic interest'},
-  {value: 'significant_other', label: 'Significant other'},
-  {value: 'situationship', label: 'Situationship'}
+export const RIZZ_RELATIONSHIP_PICKER_OPTIONS: {value: RizzPeerRelationship, label: string, emoji: string}[] = [
+  {value: 'friend', label: 'Friend', emoji: '👥'},
+  {value: 'longtime_friend', label: 'Long-time friend', emoji: '🧑‍🤝‍🧑'},
+  {value: 'acquaintance', label: 'Acquaintance', emoji: '🤝'},
+  {value: 'romantic', label: 'Romantic interest', emoji: '💕'},
+  {value: 'significant_other', label: 'Significant other', emoji: '💍'},
+  {value: 'situationship', label: 'Situationship', emoji: '🔀'}
 ];
+
+/** Short confirmation line after picking (shown ~1s before continuing). */
+export const RELATIONSHIP_PICK_QUIPS: Partial<Record<RizzPeerRelationship, string>> = {
+  friend: 'Understood. Playing the long game.',
+  longtime_friend: 'Years of history — that hits different.',
+  acquaintance: 'Keeping it casual. Got it.',
+  romantic: 'Noted. The heart wants what it wants.',
+  significant_other: 'Locked in. That\'s the vibe.',
+  situationship: 'We get it! It\'s complicated.',
+  family: 'Family ties. Got it.',
+  coworker: 'Professional mode. Understood.',
+  rival: 'Competitive energy noted.'
+};
+
+export function relationshipPickQuip(r: RizzPeerRelationship): string {
+  const q = RELATIONSHIP_PICK_QUIPS[r];
+  return q && q.trim() ? q : 'Got it.';
+}
 
 const LABEL_BY_VALUE: Record<RizzPeerRelationship, string> = {
   unset: 'Not set',
