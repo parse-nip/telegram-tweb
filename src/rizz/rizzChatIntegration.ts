@@ -24,6 +24,7 @@ import {isRizzMockAuthEnabled} from '@config/rizzMockAuth';
 import {normalizeSuggestions, localGhostCompletions, pickGhostTail} from './context';
 import {requestGhostSuggestions, classifyMessage, requestGambitReadiness} from './openrouter';
 import {getLockedOpeningLabel, trySetLockedOpeningLabel} from './openingStore';
+import {maybeShowRelationshipOnChatOpen} from './rizzRelationshipPopup';
 
 const BADGE_SIZE = 20;
 
@@ -236,6 +237,13 @@ export class RizzChatController {
         queueMicrotask(() => this.onDraftInputImmediate());
       }
     });
+
+    this.ls.add(chat.appImManager)('peer_changed', (c) => {
+      if(c === chat) {
+        queueMicrotask(() => maybeShowRelationshipOnChatOpen(chat));
+      }
+    });
+    queueMicrotask(() => maybeShowRelationshipOnChatOpen(chat));
 
     this.ls.add(chat.input.messageInput)('focus', () => {
       queueMicrotask(() => this.onDraftInputImmediate());

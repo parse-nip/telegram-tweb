@@ -155,6 +155,11 @@ function oneLiner(
     `${emojiBit}Your notifications are doing cardio without a warm-up.`,
     `${emojiBit}Romantic subplot loading… please stand by for butterflies.`
   ];
+  const situationshipLines: string[] = [
+    `${emojiBit}Status: complicated—in the fun way, maybe.`,
+    `${emojiBit}It's giving "read receipts with feelings."`,
+    `${emojiBit}Plot armor on, labels still loading.`
+  ];
   const friendLines: string[] = [
     `${emojiBit}Certified hype human—would share fries and honest opinions.`,
     `${emojiBit}Emotionally available in the group-chat sense, but nicer.`,
@@ -187,12 +192,13 @@ function oneLiner(
   ];
 
   let pool = neutral;
-  if(rel === 'romantic') pool = romantic;
-  else if(rel === 'friend') pool = friendLines;
+  if(rel === 'romantic' || rel === 'significant_other') pool = romantic;
+  else if(rel === 'friend' || rel === 'longtime_friend') pool = friendLines;
   else if(rel === 'coworker') pool = coworkerLines;
   else if(rel === 'family') pool = familyLines;
   else if(rel === 'rival') pool = rivalLines;
   else if(rel === 'acquaintance') pool = acquaintanceLines;
+  else if(rel === 'situationship') pool = situationshipLines;
 
   if(flirt >= 70 && rel !== 'coworker') {
     pool = pool.concat(romantic.slice(0, 1));
