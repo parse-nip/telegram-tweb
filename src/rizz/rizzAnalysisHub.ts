@@ -547,7 +547,7 @@ class PopupRizzAnalysisHub extends PopupElement {
     const goBtn = document.createElement('button');
     goBtn.type = 'button';
     goBtn.className = 'btn btn-link rizz-rel-picker-native__footer-btn rizz-rel-picker-native__footer-btn--primary';
-    goBtn.textContent = 'Start Wrapped';
+    goBtn.textContent = 'See Wrap';
     ripple(goBtn);
     attachClickEvent(goBtn, (e) => {
       e.stopPropagation();
@@ -559,25 +559,73 @@ class PopupRizzAnalysisHub extends PopupElement {
     this.body.append(wrap);
   }
 
+  private truncateForAnalyzing(text: string, maxLen: number): string {
+    const t = text.trim();
+    if(t.length <= maxLen) return t;
+    return t.slice(0, maxLen - 1) + '…';
+  }
+
+  private pickRandomMessageText(msgs: RizzMsgLite[]): string | null {
+    const withText = msgs.filter((m) => m.text && m.text.trim());
+    if(!withText.length) return null;
+    return withText[Math.floor(Math.random() * withText.length)].text;
+  }
+
+  private buildWrappedAnalyzingTopicLabels(): string[] {
+    const labels = this.wrappedIntentIds
+    .map((id) => getWrappedIntentTile(id)?.label)
+    .filter((x): x is string => !!x);
+    const pad = ['Moments', 'Topics', 'Rhythm'];
+    const out = [...labels];
+    for(const p of pad) {
+      if(out.length >= 3) break;
+      if(!out.includes(p)) out.push(p);
+    }
+    return out.slice(0, 3);
+  }
+
   private async runAnalysis() {
     const peerId = this.peerId;
     if(!peerId) return;
 
     this.clearBody();
-    this.setTitle(`Analyzing ${this.peerName}…`);
+    this.setTitle(this.peerName);
     if(!this.body) return;
 
-    const loadBox = el('div', 'rizz-hub-loading rizz-hub-loading--wrapped');
-    const pulse = el('div', 'rizz-hub-loading__pulse');
-    const text = el('p', 'rizz-hub-loading__text', 'Deep crawling history…');
-    const progress = el('div', 'rizz-hub-loading__progress', '0 messages');
-    const snippets = el('div', 'rizz-hub-loading__snippets');
-    loadBox.append(pulse, text, progress, snippets);
-    this.body.append(loadBox);
+    const root = el('div', 'rizz-hub-wrapped-analyzing');
+    const title = el('h2', 'rizz-hub-wrapped-analyzing__title', 'Analyzing…');
+    const status = el('p', 'rizz-hub-wrapped-analyzing__status', 'Gathering messages…');
+    const stage = el('div', 'rizz-hub-wrapped-analyzing__stage');
+
+    const messageBox = el('div', 'rizz-hub-wrapped-analyzing__message');
+    const messageText = el('p', 'rizz-hub-wrapped-analyzing__message-text');
+    messageText.textContent = 'Pulling history from this chat…';
+    messageBox.append(messageText);
+
+    const topicLabels = this.buildWrappedAnalyzingTopicLabels();
+    const topicChips: HTMLElement[] = [];
+    const corners: ('tr' | 'bl' | 'br')[] = ['tr', 'bl', 'br'];
+    const arrows = ['↗', '↙', '↘'];
+    for(let i = 0; i < 3; i++) {
+      const row = el('div', `rizz-hub-wrapped-analyzing__float rizz-hub-wrapped-analyzing__float--${corners[i]}`);
+      const arrow = el('span', 'rizz-hub-wrapped-analyzing__float-arrow', arrows[i]);
+      arrow.setAttribute('aria-hidden', 'true');
+      const chip = el('span', 'rizz-hub-wrapped-analyzing__float-chip', topicLabels[i] ?? '—');
+      row.append(arrow, chip);
+      topicChips.push(chip);
+      stage.append(row);
+    }
+    stage.append(messageBox);
+    root.append(title, status, stage);
+    this.body.append(root);
 
     try {
-      const msgs = await crawlFullHistory(peerId, (count) => {
-        progress.textContent = `${count} messages`;
+      const msgs = await crawlFullHistory(peerId, (count, all) => {
+        status.textContent = `${count} messages`;
+        const pick = this.pickRandomMessageText(all);
+        if(pick) {
+          messageText.textContent = this.truncateForAnalyzing(pick, 200);
+        }
       });
 
       if(!msgs.length) {
@@ -586,23 +634,12 @@ class PopupRizzAnalysisHub extends PopupElement {
         return;
       }
 
-      // Show some random snippets while computing stats
-      const showSnippets = async() => {
-        for(let i = 0; i < 15; i++) {
-          const m = msgs[Math.floor(Math.random() * msgs.length)];
-          if(m && m.text) {
-            const s = el('div', 'rizz-hub-loading__snippet', m.text);
-            s.style.left = `${Math.random() * 60 + 10}%`;
-            s.style.top = `${Math.random() * 60 + 20}%`;
-            snippets.append(s);
-            setTimeout(() => s.remove(), 2000);
-          }
-          await pause(300);
-        }
-      };
-      void showSnippets();
+      const pickFinal = this.pickRandomMessageText(msgs);
+      if(pickFinal) {
+        messageText.textContent = this.truncateForAnalyzing(pickFinal, 200);
+      }
 
-      text.textContent = 'Crunching signals…';
+      status.textContent = 'Crunching signals…';
       const peerKey = peerKeyFromPeerId(peerId);
       const incoming = msgs.filter((m) => !m.out).map((m) => m.text);
       const rel = getPeerRelationship(peerId);
@@ -612,7 +649,12 @@ class PopupRizzAnalysisHub extends PopupElement {
       const heatmap = buildActivityHeatmap(msgs);
       const moments = pickKeyMoments(msgs, 20);
 
-      text.textContent = 'Generating AI insights…';
+      const top = stats.topTopics.filter((t) => !!t && t.trim()).slice(0, 3);
+      for(let i = 0; i < topicChips.length; i++) {
+        if(top[i]) topicChips[i].textContent = top[i];
+      }
+
+      status.textContent = 'Generating AI insights…';
       const transcript = msgs.slice(-150).map((m) => (m.out ? 'You: ' : 'Them: ') + m.text).join('\n');
       const statsBlurb = [
         `Messages: ${stats.cappedMessages} (you ${stats.outgoingCount}, them ${stats.incomingCount})`,

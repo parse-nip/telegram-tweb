@@ -7,7 +7,10 @@ import {makeFullMid} from '@components/chat/bubbles';
 import rootScope from '@lib/rootScope';
 import pause from '@helpers/schedulers/pause';
 
-export async function crawlFullHistory(peerId: PeerId, onProgress?: (count: number) => void): Promise<RizzMsgLite[]> {
+export async function crawlFullHistory(
+  peerId: PeerId,
+  onProgress?: (count: number, messages: RizzMsgLite[]) => void
+): Promise<RizzMsgLite[]> {
   const managers = rootScope.managers;
   let offsetId = 0;
   const all: RizzMsgLite[] = [];
@@ -29,7 +32,7 @@ export async function crawlFullHistory(peerId: PeerId, onProgress?: (count: numb
       const msg = m as Message.message;
       if(seen.has(msg.id)) continue;
       seen.add(msg.id);
-      
+
       const text = (msg.message || '').trim();
       if(!text) continue;
 
@@ -48,7 +51,7 @@ export async function crawlFullHistory(peerId: PeerId, onProgress?: (count: numb
     const oldest = res.messages[res.messages.length - 1];
     offsetId = oldest.id;
 
-    if(onProgress) onProgress(all.length);
+    if(onProgress) onProgress(all.length, all);
 
     // Throttling to avoid flooding the network/UI thread
     await pause(50);
