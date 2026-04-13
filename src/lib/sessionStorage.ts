@@ -37,7 +37,11 @@ type StorageValues = {
   previous_account?: number, // only for back button when logging in to another account
   current_account?: number, // 1 if not set
   should_animate_auth?: number,
-  should_animate_main?: number
+  should_animate_main?: number,
+
+  /** Post-login "what are you here for?" — shown once until cleared with the session key */
+  rizz_intent_done?: boolean,
+  rizz_intent_choice?: 'theory' | 'analysis'
 }
 
 /**

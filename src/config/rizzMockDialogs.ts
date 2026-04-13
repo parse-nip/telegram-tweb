@@ -1,7 +1,7 @@
 /*
  * Seeds fake private chats for ?mockAuth=1 so the sidebar and Rizz flows are usable offline.
  */
-import type {Dialog, Message, User} from '@layer';
+import type {Dialog, Message, Peer, User} from '@layer';
 import {FOLDER_ID_ALL} from '@appManagers/constants';
 import {GLOBAL_FOLDER_ID} from '@lib/storages/dialogs';
 import type {AppManagers} from '@lib/managers';
@@ -28,7 +28,65 @@ const MOCK_CONTACTS: MockContact[] = [
   {userId: 999888008, firstName: 'Jamie', lastName: 'Nova', username: 'jamie_nova', lastMessage: 'This playlist is *chef kiss*'}
 ];
 
-const TOP_MSG_ID = 100;
+/** Inclusive range [MOCK_MSG_ID_MIN, MOCK_MSG_ID_MAX] per peer — enough for Rizz analysis + heatmap without MTProto. */
+const MOCK_MSG_ID_MIN = 100;
+const MOCK_MSG_ID_MAX = 149;
+
+const THEM_LINES = [
+  'Hey!',
+  'How was your day?',
+  'Haha fair enough',
+  'Same here honestly',
+  'That sounds fun',
+  'I might be free Friday',
+  'Send me the link?',
+  'No worries at all',
+  'You always make me laugh',
+  'Let me know tomorrow',
+  'Good luck with that thing',
+  'I was just thinking of you',
+  'That playlist slaps',
+  'Rain check?',
+  'See you soon',
+  'Miss talking to you',
+  'What are you up to?',
+  'That meme was perfect',
+  'Can you send that again?',
+  'I owe you one',
+  'Deal',
+  'Text me when you land',
+  'Sleep well',
+  'You got this',
+  'Talk later'
+];
+
+const YOU_LINES = [
+  'Hey',
+  'Pretty good — you?',
+  'Want to grab coffee later?',
+  'That meme you sent was perfect',
+  'See you at 7',
+  'Can you send the doc again?',
+  'Haha fair enough. Rain check?',
+  'Good luck with the interview',
+  'I\'ll call you in five.',
+  'This playlist is chef\'s kiss',
+  'Busy but hanging in',
+  'Let\'s do brunch Sunday?',
+  'You\'re the best',
+  'On my way',
+  'Sent',
+  'Perfect',
+  'Love that for us',
+  'Facts',
+  'Say less',
+  'Bet',
+  'I\'m down',
+  'Sounds like a plan',
+  'Appreciate you',
+  'Anytime',
+  'Miss you too'
+];
 
 function buildMockUser(c: MockContact): User.user {
   const now = Math.floor(Date.now() / 1000);
@@ -71,28 +129,38 @@ export async function seedRizzMockDialogs(managers: AppManagers): Promise<void> 
     await appUsersManager.saveApiUser(user, true);
 
     const peerId = c.userId.toPeerId(false);
-    const serverDate = baseServerDate - i * 90;
 
     const outputPeer = await appPeersManager.getOutputPeer(peerId);
+    const selfFrom: Peer.peerUser = { _: 'peerUser', user_id: RIZZ_MOCK_SELF_USER_ID };
+    const themFrom: Peer.peerUser = { _: 'peerUser', user_id: c.userId };
 
-    const msg: Message.message = {
-      _: 'message',
-      id: TOP_MSG_ID,
-      date: serverDate,
-      message: c.lastMessage,
-      peer_id: outputPeer,
-      from_id: outputPeer,
-      pFlags: {}
-    };
+    const batch: Message.message[] = [];
+    for(let j = MOCK_MSG_ID_MIN; j <= MOCK_MSG_ID_MAX; ++j) {
+      const idx = j - MOCK_MSG_ID_MIN;
+      const out = idx % 2 === 1;
+      const date = baseServerDate - (MOCK_MSG_ID_MAX - j) * 1400 - i * 60 - (idx % 9) * 7200;
+      const text = out ? YOU_LINES[idx % YOU_LINES.length] : THEM_LINES[idx % THEM_LINES.length];
 
-    await appMessagesManager.saveMessages([msg]);
+      const msg: Message.message = {
+        _: 'message',
+        id: j,
+        date,
+        message: text,
+        peer_id: outputPeer,
+        from_id: out ? selfFrom : themFrom,
+        pFlags: out ? { out: true } : {}
+      };
+      batch.push(msg);
+    }
+
+    await appMessagesManager.saveMessages(batch);
 
     const dialog: Dialog.dialog = {
       _: 'dialog',
       pFlags: {},
       peer: outputPeer,
-      top_message: TOP_MSG_ID,
-      read_inbox_max_id: TOP_MSG_ID,
+      top_message: MOCK_MSG_ID_MAX,
+      read_inbox_max_id: MOCK_MSG_ID_MAX,
       read_outbox_max_id: 0,
       unread_count: 0,
       unread_mentions_count: 0,

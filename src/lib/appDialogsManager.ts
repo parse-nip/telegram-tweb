@@ -1039,10 +1039,10 @@ export class AppDialogsManager {
 
     haveFilters && this.showFiltersPromise && await wrapPromiseWithMiddleware(this.showFiltersPromise);
 
-    this.managers.appNotificationsManager.getNotifyPeerTypeSettings();
+    void this.managers.appNotificationsManager.getNotifyPeerTypeSettings().catch(noop);
 
     // await (await m(loadDialogsPromise)).renderPromise.catch(noop);
-    this.managers.appMessagesManager.fillConversations();
+    void this.managers.appMessagesManager.fillConversations().catch(noop);
 
     if(!this.suggestionContainer) {
       this.suggestionContainer = document.createElement('div');
@@ -1136,7 +1136,7 @@ export class AppDialogsManager {
           const elapsedTime = Date.now() - updatedTime;
           return updatePeriod - elapsedTime;
         }, false);
-      });
+      }).catch(noop);
     }
 
     return promise;

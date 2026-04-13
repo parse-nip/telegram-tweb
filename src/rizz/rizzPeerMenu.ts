@@ -3,7 +3,7 @@ import {ChatType} from '@components/chat/chatType';
 import {showRizzStatsPopup} from './rizzStatsPopup';
 import {showRizzSettingsPopup} from './rizzSettingsPopup';
 import {showRizzRelationshipPopup} from './rizzRelationshipPopup';
-import {showRizzAnalyticsPopup} from './rizzAnalyticsPopup';
+import {openRizzAnalyticsApp} from './rizzAnalyticsApp';
 import {
   getEvalBarEnabled,
   setEvalBarEnabled,
@@ -45,7 +45,7 @@ export function getRizzPeerMenuButtons(chat: Chat) {
     {
       icon: 'poll',
       text: 'Rizz analytics',
-      onClick: () => showRizzAnalyticsPopup(),
+      onClick: () => openRizzAnalyticsApp(),
       verify: () => true
     },
     {

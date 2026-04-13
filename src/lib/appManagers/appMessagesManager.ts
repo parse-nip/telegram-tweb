@@ -96,6 +96,7 @@ import pickKeys from '@helpers/object/pickKeys';
 import namedPromises from '@helpers/namedPromises';
 import callbackifyAll from '@helpers/callbackifyAll';
 import { createBotforumTopicFromAction } from './utils/dialogs/createBotforumTopicFromAction';
+import { isRizzMockAuthEnabled } from '@config/rizzMockAuth';
 
 // console.trace('include');
 // TODO: если удалить диалог находясь в папке, то он не удалится из папки и будет виден в настройках
@@ -9442,6 +9443,46 @@ export class AppMessagesManager extends AppManager {
     return historyResult;
   }
 
+  /**
+   * ?mockAuth=1: serve chat history from local message storage only (no MTProto).
+   */
+  private buildMockLocalMessagesSlice(
+    peerId: PeerId,
+    sliceOpts: { offsetId: number, limit: number, addOffset: number }
+  ): MessagesMessages.messagesMessagesSlice {
+    const { offsetId, limit, addOffset } = sliceOpts;
+    const storage = this.getHistoryMessagesStorage(peerId);
+    const all: Message.message[] = [];
+    for (const [, msg] of storage) {
+      if (msg?._ === 'message') {
+        all.push(msg as Message.message);
+      }
+    }
+
+    all.sort((a, b) => a.mid - b.mid);
+    const total = all.length;
+    let windowMsgs: Message.message[];
+    if (!total) {
+      windowMsgs = [];
+    } else if (!offsetId) {
+      windowMsgs = all.slice(Math.max(0, all.length - limit));
+    } else {
+      const older = all.filter((m) => m.mid < offsetId);
+      windowMsgs = older.slice(Math.max(0, older.length - limit));
+    }
+
+    return {
+      _: 'messages.messagesSlice',
+      pFlags: {},
+      count: total,
+      offset_id_offset: addOffset || 0,
+      messages: windowMsgs,
+      topics: [],
+      chats: [],
+      users: []
+    };
+  }
+
   public requestHistory({
     peerId,
     offsetId = 0,
@@ -9585,16 +9626,7 @@ export class AppMessagesManager extends AppManager {
       options = getHistoryOptions;
     }
 
-    const promise = this.apiManager.invokeApiSingle(
-      method,
-      options,
-      {
-        // timeout: APITIMEOUT,
-        noErrorBox: true
-      }
-    ) as Promise<Exclude<MessagesMessages, MessagesMessages.messagesMessagesNotModified>>;
-
-    return promise.then((historyResult) => {
+    const handleHistoryResult = (historyResult: Exclude<MessagesMessages, MessagesMessages.messagesMessagesNotModified>) => {
       if (DEBUG) {
         this.log('requestHistory result:', peerId, copy(historyResult), offsetId, limit, addOffset);
       }
@@ -9623,7 +9655,23 @@ export class AppMessagesManager extends AppManager {
       }
 
       return historyResult;
-    }, (error: ApiError) => {
+    };
+
+    if (isRizzMockAuthEnabled() && method === 'messages.getHistory' && historyType === HistoryType.Chat && !threadId && !monoforumThreadId) {
+      const historyResult = this.buildMockLocalMessagesSlice(peerId, { offsetId, limit, addOffset });
+      return Promise.resolve(historyResult).then(handleHistoryResult);
+    }
+
+    const promise = this.apiManager.invokeApiSingle(
+      method,
+      options,
+      {
+        // timeout: APITIMEOUT,
+        noErrorBox: true
+      }
+    ) as Promise<Exclude<MessagesMessages, MessagesMessages.messagesMessagesNotModified>>;
+
+    return promise.then(handleHistoryResult, (error: ApiError) => {
       switch (error.type) {
         case 'CHANNEL_PRIVATE':
           let channel = this.appChatsManager.getChat(peerId.toChatId());

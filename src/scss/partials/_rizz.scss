@@ -259,6 +259,16 @@
   .popup-body {
     max-width: 24rem;
   }
+
+  .rizz-analytics-actions {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-color);
+
+    .btn-primary {
+      width: 100%;
+    }
+  }
 }
 
 .popup.popup-rizz-relationship {

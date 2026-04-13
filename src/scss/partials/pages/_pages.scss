@@ -150,6 +150,247 @@
   }
 }
 
+/* Full-viewport gradient + Telegram default pattern (see pageRizzIntent.ts backdrop) */
+body.has-auth-pages.rizz-intent-onboarding {
+  background-color: #1a6fc8 !important;
+}
+
+#auth-pages.rizz-intent-onboarding {
+  position: relative;
+  z-index: 1;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+#auth-pages.rizz-intent-onboarding > .scrollable,
+#auth-pages.rizz-intent-onboarding .tabs-container {
+  background: transparent !important;
+}
+
+.rizz-intent-backdrop {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.rizz-intent-backdrop__gradient {
+  position: absolute;
+  /* Oversized so diagonal pan never shows edges (large translate needs margin) */
+  inset: -25%;
+  background-image: linear-gradient(
+    125deg,
+    #135fa8 0%,
+    #1a6fc8 22%,
+    #2481cc 45%,
+    #3390ec 62%,
+    #2a7fd4 82%,
+    #156bb8 100%
+  );
+  background-size: 320% 320%;
+  background-position: 45% 50%;
+  will-change: transform;
+  /* ~22s each leg — clearly visible; linear = steady drift */
+  animation: rizz-intent-bg-diagonal-up 22s linear infinite alternate;
+}
+
+.rizz-intent-backdrop__gradient::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 120% 70% at 50% -10%, rgba(255, 255, 255, 0.22), transparent 52%),
+    radial-gradient(ellipse 90% 55% at 100% 100%, rgba(0, 60, 120, 0.35), transparent 50%);
+  animation: rizz-intent-glow 8s ease-in-out infinite alternate;
+}
+
+.rizz-intent-backdrop__pattern-wrap {
+  position: absolute;
+  inset: -8%;
+  animation: rizz-intent-pattern-diagonal-up 26s linear infinite alternate;
+  will-change: transform;
+}
+
+.rizz-intent-pattern-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  opacity: var(--opacity-max, 0.45);
+}
+
+.rizz-intent-pattern-canvas.blend {
+  mix-blend-mode: soft-light;
+}
+
+.page-rizzIntent {
+  &.tabs-tab {
+    position: relative;
+    overflow: visible;
+    isolation: isolate;
+    background-color: transparent !important;
+    background-image: none !important;
+  }
+
+  .container {
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+    padding: 1.5rem 1.25rem 2rem;
+    padding-bottom: max(2rem, env(safe-area-inset-bottom, 0px));
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .rizz-intent-inner {
+    width: 100%;
+    max-width: 22rem;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    animation: rizz-intent-enter 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .rizz-intent-title {
+    color: #fff;
+    font-size: 1.375rem;
+    font-weight: var(--font-weight-bold);
+    line-height: 1.35;
+    margin: 0 0 1.75rem;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  }
+
+  .rizz-intent-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+    width: 100%;
+  }
+
+  .btn-rizz-intent-cta {
+    --ripple-color: rgba(51, 144, 236, 0.35);
+    height: 50px;
+    border-radius: 0.75rem;
+    text-transform: none;
+    letter-spacing: 0.01em;
+    font-weight: var(--font-weight-bold);
+    font-size: var(--font-size-16);
+    color: #3390ec !important;
+    background: #fff !important;
+    box-shadow: 0 4px 14px rgba(0, 40, 90, 0.22);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    .rizz-intent-btn__row {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      max-width: 100%;
+    }
+
+    .rizz-intent-btn__icons {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      flex-shrink: 0;
+    }
+
+    .rizz-intent-btn__svg-img {
+      display: block;
+      width: 1.5rem;
+      height: 1.5rem;
+      flex-shrink: 0;
+      object-fit: contain;
+    }
+
+    .rizz-intent-btn__label {
+      min-width: 0;
+    }
+
+    @include animation-level(2) {
+      transition: transform 0.15s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+    }
+
+    @include hover() {
+      background: #f5f9ff !important;
+      opacity: 1 !important;
+      box-shadow: 0 6px 18px rgba(0, 40, 90, 0.28);
+    }
+
+    &:active {
+      transform: scale(0.985);
+    }
+  }
+}
+
+/* Diagonal-up pan — transform only (reliable); alternate loops smoothly */
+@keyframes rizz-intent-bg-diagonal-up {
+  0% {
+    transform: translate3d(0, 8vh, 0);
+  }
+
+  100% {
+    transform: translate3d(14vw, -18vh, 0);
+  }
+}
+
+@keyframes rizz-intent-glow {
+  from {
+    opacity: 0.85;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes rizz-intent-enter {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes rizz-intent-pattern-diagonal-up {
+  0% {
+    transform: translate3d(0, 4vh, 0) scale(1);
+  }
+
+  100% {
+    transform: translate3d(10vw, -12vh, 0) scale(1.04);
+  }
+}
+
+.rizz-intent-preview-hint {
+  position: fixed;
+  z-index: 10;
+  bottom: 1rem;
+  left: 1rem;
+  right: 1rem;
+  text-align: center;
+  font-size: var(--font-size-14);
+  line-height: var(--line-height-14);
+  color: var(--secondary-text-color);
+  margin: 0;
+  pointer-events: none;
+}
+
 .page-sign {
   .checkbox-field {
     margin-top: -1rem;

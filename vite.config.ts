@@ -54,6 +54,8 @@ const host = USE_SSL ? 'web.telegram.org' : 'localhost';
 const serverOptions: ServerOptions = {
   host,
   port: USE_SSL ? 443 : 8080,
+  // * Fail fast if the port is taken instead of hopping to 8081/8082 (easy to load a stale tab).
+  strictPort: true,
   sourcemapIgnoreList(sourcePath, sourcemapPath) {
     return sourcePath.includes('node_modules') ||
       sourcePath.includes('logger') ||
@@ -162,13 +164,13 @@ export default defineConfig({
     emptyOutDir: true,
     minify: NO_MINIFY ? false : undefined,
     rollupOptions: {
+      input: {
+        main: resolve(rootDir, 'index.html'),
+        rizzIntent: resolve(rootDir, 'rizz-intent.html')
+      },
       output: {
         sourcemapIgnoreList: serverOptions.sourcemapIgnoreList
       }
-      // input: {
-      //   main: './index.html',
-      //   sw: './src/index.service.ts'
-      // }
     }
     // cssCodeSplit: true
   },

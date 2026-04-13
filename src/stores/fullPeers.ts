@@ -4,6 +4,7 @@ import rootScope from '@lib/rootScope';
 import useDynamicCachedValue from '@helpers/solid/useDynamicCachedValue';
 import {onCleanup} from 'solid-js';
 import {PEER_FULL_TTL} from '@appManagers/constants';
+import {isRizzMockAuthEnabled} from '@config/rizzMockAuth';
 
 type PeerFull = ChatFull | UserFull;
 
@@ -11,6 +12,10 @@ const [state, setState] = createStore<{[peerId: PeerId]: PeerFull}>({});
 const expirations = new Map<PeerId, number>();
 
 const requestFullPeer = (peerId: PeerId, overwrite?: boolean) => {
+  if(isRizzMockAuthEnabled()) {
+    return;
+  }
+
   rootScope.managers.appProfileManager.getProfileByPeerId(
     peerId,
     overwrite
@@ -20,7 +25,7 @@ const requestFullPeer = (peerId: PeerId, overwrite?: boolean) => {
     }
 
     setState(peerId, reconcile(fullPeer));
-  });
+  }).catch(() => {});
 };
 
 rootScope.addEventListener('peer_full_update', requestFullPeer);

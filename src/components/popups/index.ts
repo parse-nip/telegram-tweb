@@ -387,6 +387,11 @@ export default class PopupElement<T extends EventListenerListeners = {}> extends
     // }
   }
 
+  /** For reparenting into a full-page shell (avoids accessing protected `element` from outside). */
+  public getMountHTMLElement() {
+    return this.element;
+  }
+
   public hide() {
     if(this.destroyed) {
       return;

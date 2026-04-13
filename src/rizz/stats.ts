@@ -72,6 +72,11 @@ export type ChatStats = {
   bestHourThem: number | null;
   evalScore: number;
   openingName: string;
+  // Wrapped additions
+  powerDynamic: number; // -100 to 100
+  topTopics: string[];
+  totalWords: number;
+  mostActiveMonth: string;
 };
 
 export function truncate(s: string, max = 72): string {
@@ -91,6 +96,25 @@ export function formatOpeningLine(
     return truncate(opts.openingLine1.trim());
   }
   return truncate(`Opening · ${stats.openingName}`);
+}
+
+export function extractTopics(messages: RizzMsgLite[]): string[] {
+  const stopWords = new Set(['the', 'and', 'you', 'that', 'was', 'for', 'with', 'are', 'this', 'have', 'but', 'not', 'what', 'all', 'were', 'when', 'can', 'said', 'there', 'use', 'each', 'which', 'she', 'how', 'their', 'will', 'up', 'other', 'about', 'out', 'many', 'then', 'them', 'these', 'some', 'her', 'would', 'make', 'like', 'him', 'into', 'time', 'has', 'look', 'two', 'more', 'write', 'go', 'see', 'number', 'no', 'way', 'could', 'my', 'than', 'first', 'water', 'been', 'call', 'who', 'oil', 'its', 'now', 'find']);
+  const counts = new Map<string, number>();
+
+  for(const m of messages) {
+    const words = m.text.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/);
+    for(const w of words) {
+      if(w.length > 3 && !stopWords.has(w)) {
+        counts.set(w, (counts.get(w) || 0) + 1);
+      }
+    }
+  }
+
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([w]) => w);
 }
 
 export async function computeChatStats(
@@ -115,7 +139,11 @@ export async function computeChatStats(
     bestHourYou: null,
     bestHourThem: null,
     evalScore: 50,
-    openingName: 'Flexible Open'
+    openingName: 'Flexible Open',
+    powerDynamic: 0,
+    topTopics: [],
+    totalWords: 0,
+    mostActiveMonth: ''
   };
 
   if(!slice.length) return stats;
@@ -129,12 +157,33 @@ export async function computeChatStats(
       if(cached) grade = cached.grade;
     }
     withGrades.push({...m, grade});
+    stats.totalWords += m.text.split(/\s+/).length;
   }
 
+  const monthCounts = new Map<string, number>();
   for(const m of withGrades) {
     if(m.out) stats.outgoingCount++;
     else stats.incomingCount++;
+
+    const d = new Date(m.date * 1000);
+    const mKey = `${d.getFullYear()}-${d.getMonth() + 1}`;
+    monthCounts.set(mKey, (monthCounts.get(mKey) || 0) + 1);
   }
+
+  let maxMonth = '';
+  let maxMonthCount = 0;
+  monthCounts.forEach((count, key) => {
+    if(count > maxMonthCount) {
+      maxMonthCount = count;
+      maxMonth = key;
+    }
+  });
+  if(maxMonth) {
+    const [y, m] = maxMonth.split('-');
+    stats.mostActiveMonth = new Date(+y, +m - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+  }
+
+  stats.topTopics = extractTopics(withGrades);
 
   const bestHourYou = new Array(24).fill(0);
   const bestHourThem = new Array(24).fill(0);
@@ -201,6 +250,19 @@ export async function computeChatStats(
       }
     }
   }
+
+  // Power dynamic calculation: -100 (submissive) to 100 (dominant)
+  // Factors: initiative (sessions started), double-texts (less is more dominant), reply speed (longer is more dominant)
+  const initiativeRatio = stats.sessionsTotal ? (stats.sessionsYouFirst / stats.sessionsTotal) : 0.5;
+  const doubleTextRatio = (stats.doubleTextYou + stats.doubleTextThem) ? (stats.doubleTextYou / (stats.doubleTextYou + stats.doubleTextThem)) : 0.5;
+  
+  const avgYou = stats.replyPairsYou ? stats.replySumYou / stats.replyPairsYou : 0;
+  const avgThem = stats.replyPairsThem ? stats.replySumThem / stats.replyPairsThem : 0;
+  const replyRatio = (avgYou + avgThem) ? (avgYou / (avgYou + avgThem)) : 0.5;
+
+  // We want higher power when: you start fewer sessions, you double-text less, you reply slower
+  const power = (0.5 - initiativeRatio) * 40 + (0.5 - doubleTextRatio) * 30 + (replyRatio - 0.5) * 30;
+  stats.powerDynamic = Math.max(-100, Math.min(100, Math.round(power * 2)));
 
   return stats;
 }

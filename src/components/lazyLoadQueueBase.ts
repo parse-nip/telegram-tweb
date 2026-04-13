@@ -10,7 +10,13 @@ import throttle from '@helpers/schedulers/throttle';
 import {logger, LogTypes} from '@lib/logger';
 
 const PARALLEL_LIMIT = 8;
-const IGNORE_ERRORS: Set<ErrorType> = new Set(['NO_ENTRY_FOUND', 'STORAGE_OFFLINE', 'MIDDLEWARE', 'NO_AUTO_DOWNLOAD']);
+const IGNORE_ERRORS: Set<ErrorType> = new Set([
+  'NO_ENTRY_FOUND',
+  'STORAGE_OFFLINE',
+  'MIDDLEWARE',
+  'NO_AUTO_DOWNLOAD',
+  'AUTH_KEY_UNREGISTERED'
+]);
 
 export type LazyLoadElementBase = {
   load: () => Promise<any>,

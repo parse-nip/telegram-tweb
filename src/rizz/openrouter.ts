@@ -428,3 +428,85 @@ export async function requestConversationInsight(input: ConversationInsightInput
     return null;
   }
 }
+
+/** Full-screen relationship analysis hub (JSON from model). */
+export type RelationshipDeepAnalysis = {
+  interestPulse: string;
+  theirVibe: string;
+  nextMoves: string[];
+  bestLineYouSent: string;
+  baggingProximity: number;
+  coachNotes: string;
+};
+
+function parseRelationshipDeepAnalysis(text: string): RelationshipDeepAnalysis | null {
+  let trimmed = text.trim();
+  const start = trimmed.indexOf('{');
+  const end = trimmed.lastIndexOf('}');
+  if(start >= 0 && end > start) trimmed = trimmed.slice(start, end + 1);
+  try {
+    const o = JSON.parse(trimmed) as Record<string, unknown>;
+    const nextMovesRaw = o.nextMoves;
+    const nextMoves = Array.isArray(nextMovesRaw) ?
+      nextMovesRaw.map((x) => clip(String(x), 200)).filter(Boolean).slice(0, 5) :
+      [];
+    let bag = Number(o.baggingProximity);
+    if(Number.isNaN(bag)) bag = 50;
+    bag = Math.max(0, Math.min(100, Math.round(bag)));
+    return {
+      interestPulse: clip(String(o.interestPulse || ''), 280),
+      theirVibe: clip(String(o.theirVibe || ''), 400),
+      nextMoves,
+      bestLineYouSent: clip(String(o.bestLineYouSent || ''), 320),
+      baggingProximity: bag,
+      coachNotes: clip(String(o.coachNotes || ''), 500)
+    };
+  } catch{
+    return null;
+  }
+}
+
+export function buildRelationshipDeepAnalysisBody(model: string, input: {
+  peerName: string;
+  relationshipLabel: string;
+  statsBlurb: string;
+  transcript: string;
+}) {
+  let transcript = input.transcript;
+  if(transcript.length > 18000) transcript = transcript.slice(-18000);
+  let user = `You are a sharp but kind dating/rizz coach reviewing a Telegram chat transcript.\n`;
+  user += `Chat with: ${input.peerName}\n`;
+  user += `Relationship tag (user-set): ${input.relationshipLabel}\n\n`;
+  user += `Local stats (deterministic, may be imperfect):\n${input.statsBlurb}\n\n`;
+  user += `Transcript (oldest to newest, may be trimmed):\n${transcript || '(no text)'}\n\n`;
+  user += `Return JSON ONLY:\n`;
+  user += `{"interestPulse":"one punchy line: are they into it / mixed / cold (max ~140 chars)",`;
+  user += `"theirVibe":"2–4 sentences on how they come across in text",`;
+  user += `"nextMoves":["up to 3 short specific ideas for what to do next"],`;
+  user += `"bestLineYouSent":"quote or paraphrase the user's strongest rizz moment in this window",`;
+  user += `"baggingProximity":0-100 integer — how close this chat looks to 'sealing it' (date, meet, clear mutual interest),`;
+  user += `"coachNotes":"2–4 sentences: synthesis, no bullet markdown"}\n`;
+  user += `Plain text in strings. No chess metaphors.`;
+  return {
+    model,
+    temperature: 0.35,
+    max_tokens: 1100,
+    messages: [{role: 'user' as const, content: user}]
+  };
+}
+
+export async function requestRelationshipDeepAnalysis(input: {
+  peerName: string;
+  relationshipLabel: string;
+  statsBlurb: string;
+  transcript: string;
+}): Promise<RelationshipDeepAnalysis | null> {
+  if(!getOpenRouterKey().trim()) return null;
+  const body = buildRelationshipDeepAnalysisBody(getModel(), input);
+  try {
+    const text = await postChatCompletions(body);
+    return parseRelationshipDeepAnalysis(text);
+  } catch{
+    return null;
+  }
+}

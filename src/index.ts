@@ -45,6 +45,7 @@ import AccountController from '@lib/accounts/accountController';
 import {changeAccount} from '@lib/accounts/changeAccount';
 import {MAX_ACCOUNTS_FREE, MAX_ACCOUNTS_PREMIUM} from '@lib/accounts/constants';
 import sessionStorage from '@lib/sessionStorage';
+import deferredPromise from '@helpers/cancellablePromise';
 import replaceChildrenPolyfill from '@helpers/dom/replaceChildrenPolyfill';
 import listenForWindowPrint from '@helpers/dom/windowPrint';
 import cancelImageEvents from '@helpers/dom/cancelImageEvents';
@@ -730,39 +731,67 @@ function setDocumentLangPackProperties(langPack: LangPackDifference.langPackDiff
     setBootProgress(0.82);
 
     const fontsPromise = loadFonts();
-    fadeInWhenFontsReady(document.getElementById('main-columns'), fontsPromise);
 
-    const [page, shouldAnimate] = await Promise.all([
-      import('./pages/pageIm').then((module) => module.default),
-      sessionStorage.get('should_animate_main')
-    ]);
+    const mountPageIm = async() => {
+      fadeInWhenFontsReady(document.getElementById('main-columns'), fontsPromise);
 
-    if(shouldAnimate) {
-      await sessionStorage.delete('should_animate_main');
-      page.pageEl.classList.add('main-screen-enter');
+      const [page, shouldAnimate] = await Promise.all([
+        import('./pages/pageIm').then((module) => module.default),
+        sessionStorage.get('should_animate_main')
+      ]);
 
-      await page.mount();
-      console.timeLog(TIME_LABEL, 'await page.mount()');
+      if(shouldAnimate) {
+        await sessionStorage.delete('should_animate_main');
+        page.pageEl.classList.add('main-screen-enter');
 
-      await fontsPromise;
-      console.timeLog(TIME_LABEL, 'await fontsPromise');
+        await page.mount();
+        console.timeLog(TIME_LABEL, 'await page.mount()');
 
+        await fontsPromise;
+        console.timeLog(TIME_LABEL, 'await fontsPromise');
 
-      await doubleRaf();
-      page.pageEl.classList.add('main-screen-entering');
-      await pause(200);
+        await doubleRaf();
+        page.pageEl.classList.add('main-screen-entering');
+        await pause(200);
 
-      page.pageEl.classList.remove('main-screen-enter', 'main-screen-entering');
-    } else {
-      await page.mount();
-      await fontsPromise;
+        page.pageEl.classList.remove('main-screen-enter', 'main-screen-entering');
+      } else {
+        await page.mount();
+        await fontsPromise;
+      }
+
+      if(Modes.mockAuth) {
+        const {ensureRizzMockDialogsIfNeeded} = await import('./config/rizzMockDialogs');
+        await ensureRizzMockDialogsIfNeeded(rootScope.managers);
+      }
+
+      hideBootLoader();
+    };
+
+    // * Session persists rizz_intent_done — without this, dev reloads skip the theory/analysis picker.
+    if(Modes.mockAuth || Modes.forceRizzIntent) {
+      await sessionStorage.delete('rizz_intent_done');
+      await sessionStorage.delete('rizz_intent_choice');
     }
 
-    if(Modes.mockAuth) {
-      const {ensureRizzMockDialogsIfNeeded} = await import('./config/rizzMockDialogs');
-      await ensureRizzMockDialogsIfNeeded(rootScope.managers);
+    if(!(await sessionStorage.get('rizz_intent_done'))) {
+      const intentDone = deferredPromise<void>();
+      const {default: pageRizzIntent, registerIntentComplete} = await import('./pages/pageRizzIntent');
+      registerIntentComplete(intentDone);
+      hideBootLoader();
+      await pageRizzIntent.mount();
+      await intentDone;
     }
 
-    hideBootLoader();
+    await mountPageIm();
+
+    const intentChoice = await sessionStorage.get('rizz_intent_choice');
+    if(intentChoice === 'theory' || intentChoice === 'analysis') {
+      void sessionStorage.delete('rizz_intent_choice');
+    }
+    if(intentChoice === 'analysis') {
+      const {openRizzAnalyticsApp} = await import('./rizz/rizzAnalyticsApp');
+      queueMicrotask(() => openRizzAnalyticsApp());
+    }
   }
 });

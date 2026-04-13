@@ -22,6 +22,7 @@ import {showEmailSetupPopup} from '@components/popups/emailSetup';
 import rootScope from '@lib/rootScope';
 import showPasskeyPopup from '@components/popups/passkey';
 import IS_WEB_AUTHN_SUPPORTED from '@environment/webAuthn';
+import noop from '@helpers/noop';
 
 const BIRTHDAY_SETUP_SUGGESTION_KEY = 'BIRTHDAY_SETUP';
 const EMAIL_SETUP_KEY = 'SETUP_LOGIN_EMAIL';
@@ -247,7 +248,7 @@ export function renderPendingSuggestion(toElement: HTMLElement) {
               }
             });
           }
-        });
+        }).catch(noop);
       }
     });
 

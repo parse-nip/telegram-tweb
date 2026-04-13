@@ -4,6 +4,7 @@ import useDynamicCachedValue from '@helpers/solid/useDynamicCachedValue';
 import rootScope, {BroadcastEventsListeners} from '@lib/rootScope';
 import formatStarsAmount from '@appManagers/utils/payments/formatStarsAmount';
 import bigInt from 'big-integer';
+import {isRizzMockAuthEnabled} from '@config/rizzMockAuth';
 
 const [stars, setStars] = createSignal<Long>();
 const [reservedStars, setReservedStars] = createSignal<number>(0);
@@ -11,8 +12,23 @@ const [reservedStars, setReservedStars] = createSignal<number>(0);
 const [tonBalance, setTonBalance] = createSignal<Long>();
 const [reservedTonBalance, setReservedTonBalance] = createSignal<number>(0);
 
-const fetchStars = () => rootScope.managers.appPaymentsManager.getStarsStatus(true).then((starsStatus) => setStars(formatStarsAmount(starsStatus.balance)));
-const fetchTonBalance = () => rootScope.managers.appPaymentsManager.getStarsStatusTon(true).then((starsStatus) => setTonBalance(starsStatus.balance.amount));
+const fetchStars = () => {
+  if(isRizzMockAuthEnabled()) {
+    setStars(bigInt(0) as unknown as Long);
+    return Promise.resolve();
+  }
+
+  return rootScope.managers.appPaymentsManager.getStarsStatus(true).then((starsStatus) => setStars(formatStarsAmount(starsStatus.balance)));
+};
+
+const fetchTonBalance = () => {
+  if(isRizzMockAuthEnabled()) {
+    setTonBalance(bigInt(0) as unknown as Long);
+    return Promise.resolve();
+  }
+
+  return rootScope.managers.appPaymentsManager.getStarsStatusTon(true).then((starsStatus) => setTonBalance(starsStatus.balance.amount));
+};
 
 export function prefetchStars(middleware: Middleware) {
   return createRoot((dispose) => {
