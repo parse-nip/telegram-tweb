@@ -946,3 +946,66 @@ body.night .popup.popup-rizz-analysis-hub.rizz-analysis-hub--app > .popup-contai
   font-size: var(--font-size-12);
   color: var(--secondary-text-color);
 }
+
+/* “Start Wrapped” step — matches Telegram settings / list sheet (see rizzRelationshipPicker) */
+.rizz-hub-wrapped-ready {
+  padding: 0 0.65rem 0.35rem;
+  text-align: center;
+}
+
+.rizz-hub-wrapped-ready__title {
+  margin: 0.35rem 0 0.25rem;
+  font-size: var(--font-size-17);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.3;
+  color: var(--primary-text-color);
+  letter-spacing: -0.02em;
+}
+
+.rizz-hub-wrapped-ready__hint {
+  margin: 0 0 0.65rem;
+  font-size: var(--font-size-13);
+  line-height: 1.35;
+  color: var(--secondary-text-color);
+}
+
+.rizz-hub-wrapped-ready__panel {
+  text-align: start;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  background-color: var(--surface-color);
+  margin-bottom: 0.5rem;
+}
+
+.rizz-hub-wrapped-ready__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: var(--font-size-14);
+  line-height: 1.45;
+  color: var(--primary-text-color);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.rizz-hub-wrapped-ready__row-ico {
+  flex: 0 0 1.5rem;
+  font-size: 1.1rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.rizz-hub-wrapped-ready__row-txt {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rizz-hub-wrapped-ready__footer {
+  margin-top: 0.35rem;
+  padding-top: 0.15rem;
+}

@@ -360,30 +360,52 @@ class PopupRizzAnalysisHub extends PopupElement {
     this.clearBody();
     if(!this.body) return;
 
-    const hero = el('div', 'rizz-hub-hero rizz-hub-hero--compact');
-    const deco = el('div', 'rizz-hub-hero__deco');
-    hero.append(deco);
+    const wrap = el('div', 'rizz-hub-wrapped-ready');
 
-    const hint = el('p', 'rizz-hub-sub', 'Ready to see your year in review? We will deep crawl your history to build your Rizz Wrapped experience.');
+    const title = el('h2', 'rizz-hub-wrapped-ready__title', 'Rizz Wrapped');
+    const hint = el(
+      'p',
+      'rizz-hub-wrapped-ready__hint',
+      'We\'ll pull message history from Telegram and build a recap on this device — same idea as a year-in-review story.'
+    );
 
-    const actions = el('div', 'rizz-hub-actions');
+    const panel = el('div', 'rizz-hub-wrapped-ready__panel');
+    const infoRows: [string, string][] = [
+      ['🔒', 'Private to this browser: nothing leaves your device unless you\'ve enabled cloud AI in Rizz settings.'],
+      ['📥', 'We may request older messages so the recap has enough context.'],
+      ['⏱', 'Big chats can take a moment — keep this screen open while we crawl.']
+    ];
+    for(const [ico, text] of infoRows) {
+      const row = el('div', 'rizz-hub-wrapped-ready__row');
+      row.append(
+        el('span', 'rizz-hub-wrapped-ready__row-ico', ico),
+        el('span', 'rizz-hub-wrapped-ready__row-txt', text)
+      );
+      panel.append(row);
+    }
+
+    const footer = el('div', 'rizz-rel-picker-native__footer rizz-hub-wrapped-ready__footer');
+
     const backBtn = document.createElement('button');
     backBtn.type = 'button';
-    backBtn.className = 'btn-primary btn-transparent';
+    backBtn.className = 'btn btn-link rizz-rel-picker-native__footer-btn';
     backBtn.textContent = 'Back';
     ripple(backBtn);
     attachClickEvent(backBtn, () => void this.renderPick(), {listenerSetter: this.listenerSetter});
 
-    const goBtn = Button('btn-primary btn-color-primary rizz-hub-analyze-btn', {});
+    const goBtn = document.createElement('button');
+    goBtn.type = 'button';
+    goBtn.className = 'btn btn-link rizz-rel-picker-native__footer-btn rizz-rel-picker-native__footer-btn--primary';
     goBtn.textContent = 'Start Wrapped';
+    ripple(goBtn);
     attachClickEvent(goBtn, (e) => {
       e.stopPropagation();
       void this.runAnalysis();
     }, {listenerSetter: this.listenerSetter});
 
-    actions.append(backBtn, goBtn);
-
-    this.body.append(hero, hint, actions);
+    footer.append(backBtn, goBtn);
+    wrap.append(title, hint, panel, footer);
+    this.body.append(wrap);
   }
 
   private async runAnalysis() {
