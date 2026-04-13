@@ -23,6 +23,7 @@ import {crawlFullHistory} from './rizzHistory';
 import {PopupRizzWrapped} from './rizzWrapped';
 import {listCachedPeerAnalytics} from './analyticsCache';
 import {mountRizzAnalyticsBackdrop, unmountRizzAnalyticsBackdrop} from './rizzAnalyticsBackdrop';
+import {runRelationshipGateForPeer} from './rizzRelationshipPopup';
 
 export type ShowRizzAnalysisHubOptions = {
   /** Full-page app shell: hides chats, mounts hub in `#page-rizz-analytics`. */
@@ -312,6 +313,9 @@ class PopupRizzAnalysisHub extends PopupElement {
       useManagers: true
     })) || 'Chat';
 
+    /* Same relationship picker as main chat; hub has no Chat instance so we gate by peer here. */
+    await runRelationshipGateForPeer(peerId);
+
     this.setTitle(this.peerName);
     this.clearBody();
     if(!this.body) return;
@@ -370,7 +374,7 @@ class PopupRizzAnalysisHub extends PopupElement {
       }
 
       // Show some random snippets while computing stats
-      const showSnippets = async () => {
+      const showSnippets = async() => {
         for(let i = 0; i < 15; i++) {
           const m = msgs[Math.floor(Math.random() * msgs.length)];
           if(m && m.text) {

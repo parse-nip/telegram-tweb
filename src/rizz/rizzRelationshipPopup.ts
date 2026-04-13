@@ -14,21 +14,26 @@ import {
 
 export type ShowRizzRelationshipOptions = {
   /** When true, closing without choosing is remembered for this tab session (no repeat nag). */
-  fromAutoPrompt?: boolean
+  fromAutoPrompt?: boolean,
+  /** 'person' = DM copy; 'chat' = group/channel copy. */
+  titleMode?: 'person' | 'chat',
+  /** Fired when the popup begins closing (after pick or dismiss). */
+  onClosed?: () => void
 };
 
 export class PopupRizzRelationship extends PopupElement {
   private saved = false;
 
   constructor(
-    private chat: Chat,
+    private readonly peerId: PeerId,
     private opts: ShowRizzRelationshipOptions = {}
   ) {
     const title = document.createElement('div');
     title.className = 'rizz-relationship-popup-title';
-    title.textContent = chat.peerId.isUser() ?
-      'What\'s your relationship with this person?' :
-      'What\'s your relationship with this chat?';
+    const mode = opts.titleMode ?? 'person';
+    title.textContent = mode === 'chat' ?
+      'What\'s your relationship with this chat?' :
+      'What\'s your relationship with this person?';
 
     super('popup-rizz-relationship', {
       title,
@@ -39,7 +44,12 @@ export class PopupRizzRelationship extends PopupElement {
 
     this.addEventListener('close', () => {
       if(this.opts.fromAutoPrompt && !this.saved) {
-        markRelationshipPromptSkippedForSession(this.chat.peerId);
+        markRelationshipPromptSkippedForSession(this.peerId);
+      }
+      try {
+        this.opts.onClosed?.();
+      } catch{
+        /* ignore */
       }
     });
 
@@ -58,7 +68,7 @@ export class PopupRizzRelationship extends PopupElement {
     const list = document.createElement('div');
     list.className = 'rizz-relationship-options';
 
-    const initial = getPeerRelationship(this.chat.peerId);
+    const initial = getPeerRelationship(this.peerId);
     this.updateDisplay(initial);
 
     for(const opt of RIZZ_RELATIONSHIP_PICKER_OPTIONS) {
@@ -91,7 +101,7 @@ export class PopupRizzRelationship extends PopupElement {
   }
 
   private pick(value: RizzPeerRelationship) {
-    setPeerRelationship(this.chat.peerId, value);
+    setPeerRelationship(this.peerId, value);
     this.saved = true;
     this.updateDisplay(value);
     this.forceHide();
@@ -104,7 +114,10 @@ function isPrivatePersonChat(chat: Chat) {
 
 export function showRizzRelationshipPopup(chat: Chat, opts?: ShowRizzRelationshipOptions) {
   if(chat.type !== ChatType.Chat) return;
-  PopupElement.createPopup(PopupRizzRelationship, chat, opts || {}).show();
+  PopupElement.createPopup(PopupRizzRelationship, chat.peerId, {
+    ...opts,
+    titleMode: chat.peerId.isUser() ? 'person' : 'chat'
+  }).show();
 }
 
 /** After opening a 1:1 chat, prompt once per session until the user picks a tag. */
@@ -114,4 +127,23 @@ export function maybeShowRelationshipOnChatOpen(chat: Chat) {
   if(wasRelationshipPromptSkippedThisSession(chat.peerId)) return;
   if(PopupElement.getPopups(PopupRizzRelationship).length) return;
   showRizzRelationshipPopup(chat, {fromAutoPrompt: true});
+}
+
+/**
+ * Rizz Analytics hub: no Chat instance — still show the same picker before Wrapped when unset.
+ * Awaits until the popup is dismissed (picked or closed).
+ */
+export function runRelationshipGateForPeer(peerId: PeerId): Promise<void> {
+  if(!peerId.isUser()) return Promise.resolve();
+  if(getPeerRelationship(peerId) !== 'unset') return Promise.resolve();
+  if(wasRelationshipPromptSkippedThisSession(peerId)) return Promise.resolve();
+  if(PopupElement.getPopups(PopupRizzRelationship).length) return Promise.resolve();
+  return new Promise((resolve) => {
+    const popup = PopupElement.createPopup(PopupRizzRelationship, peerId, {
+      fromAutoPrompt: true,
+      titleMode: 'person',
+      onClosed: resolve
+    });
+    popup.show();
+  });
 }
