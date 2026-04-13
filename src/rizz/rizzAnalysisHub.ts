@@ -22,6 +22,15 @@ import {
   wasRelationshipPromptSkippedThisSession
 } from './peerRelationship';
 import {createTelegramRelationshipPicker} from './rizzRelationshipPicker';
+import {
+  WRAPPED_INTENT_ROW1,
+  WRAPPED_INTENT_ROW2,
+  WRAPPED_INTENT_ROW3,
+  setStoredWrappedIntent,
+  getWrappedIntentTile,
+  type WrappedIntentId,
+  type WrappedIntentTile
+} from './wrappedIntent';
 import {requestRelationshipDeepAnalysis, type RelationshipDeepAnalysis} from './openrouter';
 import {buildActivityHeatmap, type ActivityHeatmap} from './rizzAnalysisHeatmap';
 import {formatAnalysisTimestamp, pickKeyMoments, type KeyMoment} from './analysisKeyMoments';
@@ -86,6 +95,10 @@ class PopupRizzAnalysisHub extends PopupElement {
   private peerId?: PeerId;
   private peerName = '';
   private messageLimit = 500;
+  /** Back from intent step → relationship picker vs chat carousel */
+  private intentBackTarget: 'relationship' | 'pick' = 'pick';
+  /** Focus chosen on “What do you want to know?” */
+  private wrappedIntentId: WrappedIntentId | null = null;
   /** Private chats for carousel (pick step). */
   private carouselPeerIds: PeerId[] = [];
   private carouselSelectedIdx = 0;
@@ -129,6 +142,7 @@ class PopupRizzAnalysisHub extends PopupElement {
 
   private async renderPick() {
     this.peerId = undefined;
+    this.wrappedIntentId = null;
     this.setTitle('Rizz Analytics');
     this.clearBody();
     if(!this.body) return;
@@ -323,11 +337,13 @@ class PopupRizzAnalysisHub extends PopupElement {
       !wasRelationshipPromptSkippedThisSession(peerId);
 
     if(needsRel) {
+      this.intentBackTarget = 'relationship';
       this.renderRelationshipStep(peerId);
       return;
     }
 
-    this.renderConfigureReady();
+    this.intentBackTarget = 'pick';
+    this.renderWrappedIntentStep();
   }
 
   /** Inline step inside the hub (not a separate popup — avoids stacking under `#page-rizz-analytics`). */
@@ -342,14 +358,102 @@ class PopupRizzAnalysisHub extends PopupElement {
       listenerSetter: this.listenerSetter,
       autoAdvanceMs: 1100,
       onCancel: () => void this.renderPick(),
-      onComplete: () => this.renderConfigureReady(),
+      onComplete: () => {
+        this.intentBackTarget = 'relationship';
+        this.renderWrappedIntentStep();
+      },
       onSkip: () => {
         markRelationshipPromptSkippedForSession(peerId);
-        this.renderConfigureReady();
+        this.intentBackTarget = 'pick';
+        this.renderWrappedIntentStep();
       }
     });
 
     this.body.append(picker);
+  }
+
+  /** Masonry-style focus picker — after relationship, before “Start Wrapped”. */
+  private renderWrappedIntentStep() {
+    const peerId = this.peerId;
+    if(!peerId) return;
+
+    this.setTitle(this.peerName);
+    this.clearBody();
+    if(!this.body) return;
+
+    const wrap = el('div', 'rizz-hub-wrapped-intent');
+    const title = el('h2', 'rizz-hub-wrapped-intent__title', 'What do you want to know?');
+    const hint = el(
+      'p',
+      'rizz-hub-wrapped-intent__hint',
+      'Tap a tile — we\'ll lean the recap that way. One moment of flair, then the next step.'
+    );
+
+    const quip = el('div', 'rizz-hub-wrapped-intent__quip hide');
+    quip.setAttribute('role', 'status');
+
+    let advanceTimer: number | null = null;
+    const clearTimer = () => {
+      if(advanceTimer !== null) {
+        clearTimeout(advanceTimer);
+        advanceTimer = null;
+      }
+    };
+
+    const mkTile = (tile: WrappedIntentTile) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `rizz-hub-wrapped-intent__tile rizz-hub-wrapped-intent__tile--${tile.variant}`;
+      btn.append(
+        el('span', 'rizz-hub-wrapped-intent__tile-label', tile.label),
+        el('span', 'rizz-hub-wrapped-intent__tile-line', tile.line)
+      );
+      ripple(btn);
+      attachClickEvent(btn, () => {
+        clearTimer();
+        this.wrappedIntentId = tile.id;
+        setStoredWrappedIntent(peerId, tile.id);
+        quip.textContent = tile.quip;
+        quip.classList.remove('hide');
+        advanceTimer = window.setTimeout(() => {
+          advanceTimer = null;
+          void this.renderConfigureReady();
+        }, 1000);
+      }, {listenerSetter: this.listenerSetter});
+      return btn;
+    };
+
+    const r1 = el('div', 'rizz-hub-wrapped-intent__row rizz-hub-wrapped-intent__row--r1');
+    WRAPPED_INTENT_ROW1.forEach((t) => r1.append(mkTile(t)));
+
+    const r2 = el('div', 'rizz-hub-wrapped-intent__row rizz-hub-wrapped-intent__row--r2');
+    WRAPPED_INTENT_ROW2.forEach((t) => r2.append(mkTile(t)));
+
+    const r3 = el('div', 'rizz-hub-wrapped-intent__row rizz-hub-wrapped-intent__row--r3');
+    WRAPPED_INTENT_ROW3.forEach((t) => r3.append(mkTile(t)));
+
+    const grid = el('div', 'rizz-hub-wrapped-intent__grid');
+    grid.append(r1, r2, r3);
+
+    const footer = el('div', 'rizz-rel-picker-native__footer rizz-hub-wrapped-intent__footer');
+    const backBtn = document.createElement('button');
+    backBtn.type = 'button';
+    backBtn.className = 'btn btn-link rizz-rel-picker-native__footer-btn';
+    backBtn.textContent = 'Back';
+    ripple(backBtn);
+    attachClickEvent(backBtn, () => {
+      clearTimer();
+      quip.classList.add('hide');
+      if(this.intentBackTarget === 'relationship') {
+        this.renderRelationshipStep(peerId);
+      } else {
+        void this.renderPick();
+      }
+    }, {listenerSetter: this.listenerSetter});
+    footer.append(backBtn);
+
+    wrap.append(title, hint, quip, grid, footer);
+    this.body.append(wrap);
   }
 
   private renderConfigureReady() {
@@ -368,6 +472,17 @@ class PopupRizzAnalysisHub extends PopupElement {
       'rizz-hub-wrapped-ready__hint',
       'We\'ll pull message history from Telegram and build a recap on this device — same idea as a year-in-review story.'
     );
+
+    const nodes: HTMLElement[] = [title];
+    if(this.wrappedIntentId) {
+      const tile = getWrappedIntentTile(this.wrappedIntentId);
+      if(tile) {
+        nodes.push(
+          el('p', 'rizz-hub-wrapped-ready__focus', `Focus · ${tile.label}`)
+        );
+      }
+    }
+    nodes.push(hint);
 
     const panel = el('div', 'rizz-hub-wrapped-ready__panel');
     const infoRows: [string, string][] = [
@@ -391,7 +506,7 @@ class PopupRizzAnalysisHub extends PopupElement {
     backBtn.className = 'btn btn-link rizz-rel-picker-native__footer-btn';
     backBtn.textContent = 'Back';
     ripple(backBtn);
-    attachClickEvent(backBtn, () => void this.renderPick(), {listenerSetter: this.listenerSetter});
+    attachClickEvent(backBtn, () => void this.renderWrappedIntentStep(), {listenerSetter: this.listenerSetter});
 
     const goBtn = document.createElement('button');
     goBtn.type = 'button';
@@ -404,7 +519,7 @@ class PopupRizzAnalysisHub extends PopupElement {
     }, {listenerSetter: this.listenerSetter});
 
     footer.append(backBtn, goBtn);
-    wrap.append(title, hint, panel, footer);
+    wrap.append(...nodes, panel, footer);
     this.body.append(wrap);
   }
 
