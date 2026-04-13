@@ -49,7 +49,9 @@ export function createTelegramRelationshipPicker(options: TelegramRelationshipPi
 
   const hint = document.createElement('p');
   hint.className = 'rizz-rel-picker-native__hint';
-  hint.textContent = 'Stored only on this device.';
+  hint.textContent = autoAdvanceMs > 0 ?
+    'Stored only on this device.' :
+    'Stored only on this device. Tap Done when you\'re ready to continue.';
 
   const quip = document.createElement('div');
   quip.className = 'rizz-rel-picker-native__quip hide';

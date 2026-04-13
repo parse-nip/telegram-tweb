@@ -1,4 +1,4 @@
-/** Wrapped “what do you want to know?” tiles — ids stored for future analytics / UI focus. */
+/** Wrapped “what do you want to know?” tiles — multi-select ids stored for recap focus. */
 
 export type WrappedIntentId =
   | 'power_dynamic'
@@ -15,7 +15,7 @@ export type WrappedIntentTile = {
   label: string,
   /** Short line shown on tile */
   line: string,
-  /** Shown briefly after tap before continuing */
+  /** Optional flair copy (e.g. toast) */
   quip: string,
   /** Layout hint for masonry */
   variant: 'compact' | 'tall' | 'wide' | 'full'
@@ -86,31 +86,52 @@ export const WRAPPED_INTENT_ROW3: WrappedIntentTile[] = [
   }
 ];
 
-const STORAGE_PREFIX = 'rizz_wrapped_intent_v1:';
+const ALL_TILES: WrappedIntentTile[] = [
+  ...WRAPPED_INTENT_ROW1,
+  ...WRAPPED_INTENT_ROW2,
+  ...WRAPPED_INTENT_ROW3
+];
 
-export function setStoredWrappedIntent(peerId: PeerId, id: WrappedIntentId) {
+const ALLOWED_IDS = new Set(ALL_TILES.map((t) => t.id));
+
+const STORAGE_PREFIX = 'rizz_wrapped_intent_v2:';
+
+function isValidIntentId(id: string): id is WrappedIntentId {
+  return ALLOWED_IDS.has(id as WrappedIntentId);
+}
+
+export function getWrappedIntentTile(id: WrappedIntentId): WrappedIntentTile | undefined {
+  return ALL_TILES.find((t) => t.id === id);
+}
+
+export function setStoredWrappedIntents(peerId: PeerId, ids: WrappedIntentId[]) {
   try {
-    localStorage.setItem(STORAGE_PREFIX + String(peerId), id);
+    const uniq = [...new Set(ids)].filter(isValidIntentId);
+    localStorage.setItem(STORAGE_PREFIX + String(peerId), JSON.stringify(uniq));
   } catch{
     /* ignore */
   }
 }
 
-export function getWrappedIntentTile(id: WrappedIntentId): WrappedIntentTile | undefined {
-  return [...WRAPPED_INTENT_ROW1, ...WRAPPED_INTENT_ROW2, ...WRAPPED_INTENT_ROW3].find((t) => t.id === id);
-}
+/** Legacy v1 key stored a single id string. */
+const STORAGE_PREFIX_LEGACY = 'rizz_wrapped_intent_v1:';
 
-export function getStoredWrappedIntent(peerId: PeerId): WrappedIntentId | null {
+export function getStoredWrappedIntents(peerId: PeerId): WrappedIntentId[] {
+  const k = String(peerId);
   try {
-    const v = localStorage.getItem(STORAGE_PREFIX + String(peerId));
-    if(!v) return null;
-    const all = [
-      ...WRAPPED_INTENT_ROW1,
-      ...WRAPPED_INTENT_ROW2,
-      ...WRAPPED_INTENT_ROW3
-    ].map((t) => t.id);
-    return all.includes(v as WrappedIntentId) ? v as WrappedIntentId : null;
+    const raw = localStorage.getItem(STORAGE_PREFIX + k);
+    if(raw) {
+      const parsed = JSON.parse(raw) as unknown;
+      if(Array.isArray(parsed)) {
+        return parsed.filter((id): id is WrappedIntentId => typeof id === 'string' && isValidIntentId(id));
+      }
+    }
+    const legacy = localStorage.getItem(STORAGE_PREFIX_LEGACY + k);
+    if(legacy && isValidIntentId(legacy)) {
+      return [legacy];
+    }
   } catch{
-    return null;
+    /* ignore */
   }
+  return [];
 }

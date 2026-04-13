@@ -46,7 +46,7 @@ export class PopupRizzRelationship extends PopupElement {
       peerId: this.peerId,
       titleMode: this.opts.titleMode ?? 'person',
       listenerSetter: this.listenerSetter,
-      autoAdvanceMs: 1100,
+      autoAdvanceMs: 0,
       onCancel: () => this.forceHide(),
       onComplete: () => {
         this.saved = true;

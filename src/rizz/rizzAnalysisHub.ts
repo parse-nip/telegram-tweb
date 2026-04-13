@@ -26,7 +26,8 @@ import {
   WRAPPED_INTENT_ROW1,
   WRAPPED_INTENT_ROW2,
   WRAPPED_INTENT_ROW3,
-  setStoredWrappedIntent,
+  setStoredWrappedIntents,
+  getStoredWrappedIntents,
   getWrappedIntentTile,
   type WrappedIntentId,
   type WrappedIntentTile
@@ -97,8 +98,8 @@ class PopupRizzAnalysisHub extends PopupElement {
   private messageLimit = 500;
   /** Back from intent step → relationship picker vs chat carousel */
   private intentBackTarget: 'relationship' | 'pick' = 'pick';
-  /** Focus chosen on “What do you want to know?” */
-  private wrappedIntentId: WrappedIntentId | null = null;
+  /** Focus areas chosen on “What do you want to know?” (multi-select) */
+  private wrappedIntentIds: WrappedIntentId[] = [];
   /** Private chats for carousel (pick step). */
   private carouselPeerIds: PeerId[] = [];
   private carouselSelectedIdx = 0;
@@ -142,7 +143,7 @@ class PopupRizzAnalysisHub extends PopupElement {
 
   private async renderPick() {
     this.peerId = undefined;
-    this.wrappedIntentId = null;
+    this.wrappedIntentIds = [];
     this.setTitle('Rizz Analytics');
     this.clearBody();
     if(!this.body) return;
@@ -356,7 +357,7 @@ class PopupRizzAnalysisHub extends PopupElement {
       peerId,
       titleMode: 'person',
       listenerSetter: this.listenerSetter,
-      autoAdvanceMs: 1100,
+      autoAdvanceMs: 0,
       onCancel: () => void this.renderPick(),
       onComplete: () => {
         this.intentBackTarget = 'relationship';
@@ -372,7 +373,7 @@ class PopupRizzAnalysisHub extends PopupElement {
     this.body.append(picker);
   }
 
-  /** Masonry-style focus picker — after relationship, before “Start Wrapped”. */
+  /** Masonry-style multi-select — after relationship, before “Start Wrapped”. */
   private renderWrappedIntentStep() {
     const peerId = this.peerId;
     if(!peerId) return;
@@ -381,44 +382,65 @@ class PopupRizzAnalysisHub extends PopupElement {
     this.clearBody();
     if(!this.body) return;
 
+    const initial = this.wrappedIntentIds.length ?
+      this.wrappedIntentIds :
+      getStoredWrappedIntents(peerId);
+    const selected = new Set<WrappedIntentId>(initial);
+
     const wrap = el('div', 'rizz-hub-wrapped-intent');
     const title = el('h2', 'rizz-hub-wrapped-intent__title', 'What do you want to know?');
     const hint = el(
       'p',
       'rizz-hub-wrapped-intent__hint',
-      'Tap a tile — we\'ll lean the recap that way. One moment of flair, then the next step.'
+      'Select one or more — we\'ll weave them into the recap. Tap Continue when ready.'
     );
 
-    const quip = el('div', 'rizz-hub-wrapped-intent__quip hide');
-    quip.setAttribute('role', 'status');
+    const summary = el('p', 'rizz-hub-wrapped-intent__summary');
+    const updateSummary = () => {
+      const n = selected.size;
+      summary.textContent = n === 0 ? 'Nothing selected yet.' : `${n} selected`;
+      summary.classList.toggle('rizz-hub-wrapped-intent__summary--empty', n === 0);
+    };
 
-    let advanceTimer: number | null = null;
-    const clearTimer = () => {
-      if(advanceTimer !== null) {
-        clearTimeout(advanceTimer);
-        advanceTimer = null;
-      }
+    const continueBtn = document.createElement('button');
+    continueBtn.type = 'button';
+    continueBtn.className = 'btn btn-link rizz-rel-picker-native__footer-btn rizz-rel-picker-native__footer-btn--primary';
+    continueBtn.textContent = 'Continue';
+    continueBtn.disabled = selected.size === 0;
+    ripple(continueBtn);
+
+    const refreshTile = (btn: HTMLButtonElement, id: WrappedIntentId) => {
+      const on = selected.has(id);
+      btn.classList.toggle('rizz-hub-wrapped-intent__tile--selected', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      const mark = btn.querySelector('.rizz-hub-wrapped-intent__tile-check');
+      if(mark) mark.classList.toggle('rizz-hub-wrapped-intent__tile-check--on', on);
     };
 
     const mkTile = (tile: WrappedIntentTile) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = `rizz-hub-wrapped-intent__tile rizz-hub-wrapped-intent__tile--${tile.variant}`;
-      btn.append(
+      const main = el('div', 'rizz-hub-wrapped-intent__tile-main');
+      main.append(
         el('span', 'rizz-hub-wrapped-intent__tile-label', tile.label),
         el('span', 'rizz-hub-wrapped-intent__tile-line', tile.line)
       );
+      const check = document.createElement('span');
+      check.className = 'rizz-hub-wrapped-intent__tile-check';
+      check.setAttribute('aria-hidden', 'true');
+      btn.append(main, check);
       ripple(btn);
+      refreshTile(btn, tile.id);
       attachClickEvent(btn, () => {
-        clearTimer();
-        this.wrappedIntentId = tile.id;
-        setStoredWrappedIntent(peerId, tile.id);
-        quip.textContent = tile.quip;
-        quip.classList.remove('hide');
-        advanceTimer = window.setTimeout(() => {
-          advanceTimer = null;
-          void this.renderConfigureReady();
-        }, 1000);
+        if(selected.has(tile.id)) {
+          selected.delete(tile.id);
+        } else {
+          selected.add(tile.id);
+        }
+        refreshTile(btn, tile.id);
+        updateSummary();
+        continueBtn.disabled = selected.size === 0;
       }, {listenerSetter: this.listenerSetter});
       return btn;
     };
@@ -435,6 +457,8 @@ class PopupRizzAnalysisHub extends PopupElement {
     const grid = el('div', 'rizz-hub-wrapped-intent__grid');
     grid.append(r1, r2, r3);
 
+    updateSummary();
+
     const footer = el('div', 'rizz-rel-picker-native__footer rizz-hub-wrapped-intent__footer');
     const backBtn = document.createElement('button');
     backBtn.type = 'button';
@@ -442,17 +466,23 @@ class PopupRizzAnalysisHub extends PopupElement {
     backBtn.textContent = 'Back';
     ripple(backBtn);
     attachClickEvent(backBtn, () => {
-      clearTimer();
-      quip.classList.add('hide');
       if(this.intentBackTarget === 'relationship') {
         this.renderRelationshipStep(peerId);
       } else {
         void this.renderPick();
       }
     }, {listenerSetter: this.listenerSetter});
-    footer.append(backBtn);
 
-    wrap.append(title, hint, quip, grid, footer);
+    attachClickEvent(continueBtn, () => {
+      if(selected.size === 0) return;
+      this.wrappedIntentIds = [...selected];
+      setStoredWrappedIntents(peerId, this.wrappedIntentIds);
+      void this.renderConfigureReady();
+    }, {listenerSetter: this.listenerSetter});
+
+    footer.append(backBtn, continueBtn);
+
+    wrap.append(title, hint, summary, grid, footer);
     this.body.append(wrap);
   }
 
@@ -474,13 +504,19 @@ class PopupRizzAnalysisHub extends PopupElement {
     );
 
     const nodes: HTMLElement[] = [title];
-    if(this.wrappedIntentId) {
-      const tile = getWrappedIntentTile(this.wrappedIntentId);
-      if(tile) {
-        nodes.push(
-          el('p', 'rizz-hub-wrapped-ready__focus', `Focus · ${tile.label}`)
-        );
+    if(this.wrappedIntentIds.length) {
+      const labels = this.wrappedIntentIds
+      .map((id) => getWrappedIntentTile(id)?.label)
+      .filter((x): x is string => !!x);
+      let focusText: string;
+      if(labels.length <= 3) {
+        focusText = labels.join(', ');
+      } else {
+        focusText = `${labels.slice(0, 3).join(', ')} +${labels.length - 3} more`;
       }
+      nodes.push(
+        el('p', 'rizz-hub-wrapped-ready__focus', `Focus · ${focusText}`)
+      );
     }
     nodes.push(hint);
 
