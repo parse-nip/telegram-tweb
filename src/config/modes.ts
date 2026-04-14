@@ -37,6 +37,8 @@ const Modes = {
   mockAuth: urlParamFlag('mockAuth', '1', true),
   /** Show the post-login Rizz intent screen again (clears one-shot session flags). */
   forceRizzIntent: urlParamFlag('rizzIntent', '1'),
+  /** QA: allow "Proceed with mock Wrapped" without `mockAuth` (see `showMockWrappedShortcut`). */
+  mockWrap: urlParamFlag('mockWrap', '1'),
   debug: urlParamFlag('debug', '1'),
   http: false,
   ssl: true, // location.search.indexOf('ssl=1') > 0 || location.protocol === 'https:' && location.search.indexOf('ssl=0') === -1,

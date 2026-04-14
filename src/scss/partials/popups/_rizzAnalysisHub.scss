@@ -1017,6 +1017,18 @@ body.night .popup.popup-rizz-analysis-hub.rizz-analysis-hub--app > .popup-contai
   color: var(--primary-color);
 }
 
+.rizz-hub-wrapped-ready__mock-wrap {
+  margin-top: 0.4rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.rizz-hub-wrapped-ready__mock-btn {
+  font-size: var(--font-size-12);
+  color: var(--secondary-text-color);
+}
+
 /* “What do you want to know?” — masonry tiles (Telegram-style chips) */
 .rizz-hub-wrapped-intent {
   padding: 0 0.65rem 0.35rem;

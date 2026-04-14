@@ -1,11 +1,55 @@
 import type Chat from '@components/chat/chat';
 import type {Message} from '@layer';
+import Modes from '@config/modes';
 import {Grade} from './grades';
 import type {RizzMsgLite} from './stats';
 import {buildSmartContext} from './context';
 import {makeFullMid} from '@components/chat/bubbles';
 import rootScope from '@lib/rootScope';
 import pause from '@helpers/schedulers/pause';
+
+/**
+ * `getHistory` often omits `messages` (only `history` mids) unless search cache flags are set.
+ * Resolve full message objects so crawlers work in mock and normal modes.
+ */
+function messagesFromHistoryResult(
+  peerId: PeerId,
+  res: {
+    history?: Array<number | string>,
+    messages?: Array<Message.message | Message.messageService>
+  }
+): Message.message[] {
+  const am = rootScope.managers.appMessagesManager;
+  if(res.messages?.length) {
+    return res.messages.filter((m) => m._ === 'message') as Message.message[];
+  }
+  const hist = res.history;
+  if(!hist?.length) return [];
+  const out: Message.message[] = [];
+  for(const item of hist) {
+    let mid: number;
+    let peer = peerId;
+    if(typeof item === 'number') {
+      mid = item;
+    } else {
+      const str = String(item);
+      const idx = str.indexOf('_');
+      if(idx !== -1) {
+        peer = str.slice(0, idx).toPeerId();
+        mid = +str.slice(idx + 1);
+      } else {
+        mid = +str;
+      }
+    }
+    const m = am.getMessageByPeer(peer, mid);
+    if(m && m._ === 'message') out.push(m as Message.message);
+  }
+  return out;
+}
+
+function messageMid(msg: Message.message): number {
+  return msg.mid ?? msg.id;
+}
 
 export async function crawlFullHistory(
   peerId: PeerId,
@@ -21,17 +65,20 @@ export async function crawlFullHistory(
       peerId,
       offsetId,
       limit: 100,
-      addOffset: 0
+      addOffset: 0,
+      fetchIfWasNotFetched: true
     });
 
-    if(!res || !res.messages || !res.messages.length) break;
+    if(!res) break;
+
+    const batch = messagesFromHistoryResult(peerId, res);
+    if(!batch.length) break;
 
     let addedInRound = 0;
-    for(const m of res.messages) {
-      if(m._ !== 'message') continue;
-      const msg = m as Message.message;
-      if(seen.has(msg.id)) continue;
-      seen.add(msg.id);
+    for(const msg of batch) {
+      const mid = messageMid(msg);
+      if(seen.has(mid)) continue;
+      seen.add(mid);
 
       const text = (msg.message || '').trim();
       if(!text) continue;
@@ -40,7 +87,7 @@ export async function crawlFullHistory(
         date: msg.date,
         out: !!msg.pFlags?.out,
         text,
-        mid: msg.id,
+        mid,
         grade: Grade.Unknown
       });
       addedInRound++;
@@ -48,16 +95,23 @@ export async function crawlFullHistory(
 
     if(addedInRound === 0) break;
 
-    const oldest = res.messages[res.messages.length - 1];
-    offsetId = oldest.id;
+    offsetId = Math.min(...batch.map(messageMid));
 
     if(onProgress) onProgress(all.length, all);
 
-    // Throttling to avoid flooding the network/UI thread
     await pause(50);
 
-    // Safety break for extremely large chats (optional, but good for UX)
     if(all.length > 50000) break;
+  }
+
+  if(!all.length && Modes.mockAuth) {
+    const chat = managers.appChatsManager.getChat(peerId.toChatId());
+    if(chat) {
+      const collected = collectRizzMessages(chat, 50000);
+      if(collected.length) {
+        return collected.sort((a, b) => a.date - b.date);
+      }
+    }
   }
 
   return all.sort((a, b) => a.date - b.date);

@@ -36,6 +36,7 @@ import {requestRelationshipDeepAnalysis, type RelationshipDeepAnalysis} from './
 import {buildActivityHeatmap, type ActivityHeatmap} from './rizzAnalysisHeatmap';
 import {formatAnalysisTimestamp, pickKeyMoments, type KeyMoment} from './analysisKeyMoments';
 import {crawlFullHistory} from './rizzHistory';
+import {buildMockWrappedRun, showMockWrappedShortcut} from './rizzWrappedMock';
 import {PopupRizzWrapped} from './rizzWrapped';
 import {listCachedPeerAnalytics} from './analyticsCache';
 import {mountRizzAnalyticsBackdrop, unmountRizzAnalyticsBackdrop} from './rizzAnalyticsBackdrop';
@@ -556,7 +557,48 @@ class PopupRizzAnalysisHub extends PopupElement {
 
     footer.append(backBtn, goBtn);
     wrap.append(...nodes, panel, footer);
+
+    if(showMockWrappedShortcut()) {
+      const mockRow = el('div', 'rizz-hub-wrapped-ready__mock-wrap');
+      const mockBtn = document.createElement('button');
+      mockBtn.type = 'button';
+      mockBtn.className = 'btn btn-link rizz-hub-wrapped-ready__mock-btn';
+      mockBtn.textContent = 'Proceed with mock Wrapped';
+      ripple(mockBtn);
+      attachClickEvent(mockBtn, (e) => {
+        e.stopPropagation();
+        void this.runMockWrapped();
+      }, {listenerSetter: this.listenerSetter});
+      mockRow.append(mockBtn);
+      wrap.append(mockRow);
+    }
+
     this.body.append(wrap);
+  }
+
+  private async runMockWrapped() {
+    const peerId = this.peerId;
+    if(!peerId) return;
+    try {
+      const {msgs, stats, heatmap, moments, llm, relationship} = await buildMockWrappedRun(peerId, this.peerName);
+      const wrapped = PopupElement.createPopup(PopupRizzWrapped, {
+        peerId,
+        peerName: this.peerName,
+        msgs,
+        stats,
+        heatmap,
+        llm,
+        moments,
+        relationship
+      });
+      wrapped.show();
+      this.hide();
+    } catch(err) {
+      console.error(err);
+      toast(
+        `Mock Wrapped failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
   }
 
   private truncateForAnalyzing(text: string, maxLen: number): string {
